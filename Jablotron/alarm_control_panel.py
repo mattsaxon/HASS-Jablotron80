@@ -4,6 +4,7 @@ import re
 import time
 import voluptuous as vol
 import asyncio
+import threading
 
 import homeassistant.components.alarm_control_panel as alarm
 from homeassistant.const import (
@@ -46,12 +47,12 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 async def async_setup_platform(hass: HomeAssistantType, config: ConfigType,
                                async_add_entities, discovery_info=None):
 
-    async_add_entities([JablotronAlarm(config)])
+    async_add_entities([JablotronAlarm(hass,config)])
 
 class JablotronAlarm(alarm.AlarmControlPanel):
     """Representation of a Jabltron alarm status."""
 
-    def __init__(self, config):
+    def __init__(self, hass, config):
         """Init the Alarm Control Panel."""
         self._state = None
         self._sub_state = None
@@ -60,22 +61,31 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._available = False
         self._code = config.get(CONF_CODE)
         self._f = None
-
+        self._hass = hass
         self._config = config
         
-        self._update_required = asyncio.Event()
-        self._update_required.clear()
+        self._lock = threading.BoundedSemaphore()
+        self._stop = threading.Event()
 
         try:         
-            from concurrent.futures import ThreadPoolExecutor
-            io_pool_exc = ThreadPoolExecutor(max_workers=5)    
-            io_pool_exc.submit(self._read_loop)
-            io_pool_exc.submit(self._startup_message)
+            hass.bus.async_listen('homeassistant_stop', self.shutdown_threads)
 
-            asyncio.create_task(self._update_loop())
+            from concurrent.futures import ThreadPoolExecutor
+            self._io_pool_exc = ThreadPoolExecutor(max_workers=5)    
+            self._read_loop_future = self._io_pool_exc.submit(self._read_loop)
+            self._io_pool_exc.submit(self._startup_message)
 
         except Exception as ex:
-                    _LOGGER.error('Unexpected error: %s', format(ex) )
+            _LOGGER.error('Unexpected error: %s', format(ex) )
+
+
+    def shutdown_threads(self, event):
+
+        _LOGGER.debug('handle_shutdown() called' )
+
+        self._stop.set()
+
+        _LOGGER.debug('exiting handle_shutdown()' )
 
     @property
     def should_poll(self):
@@ -113,28 +123,39 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             self.async_schedule_update_ha_state()
             self._update_required.clear()
 
+    async def _update(self):
+
+            self.async_schedule_update_ha_state()
+
     def _read_loop(self):
 
         try:
 
-            time.sleep(1) # do a short wait at start, race condition that hass not setup??
+            while not self._stop.is_set():
 
-            self._f = open(self._file_path, 'rb', 64)
+                self._lock.acquire()
 
-            while True:
+                self._f = open(self._file_path, 'rb', 64)
+
                 new_state = self._read()
 
                 if new_state != self._state:
                     _LOGGER.info("Jabltron state change: %s to %s", self._state, new_state )
                     self._state = new_state
-                    
-                    self._update_required.set()
+
+                    asyncio.run_coroutine_threadsafe(self._update(), self._hass.loop)                   
+
+                self._f.close()
+
+                self._lock.release()
 
                 time.sleep(1)
 
         except Exception as ex:
-                    _LOGGER.error('Unexpected error: %s', format(ex) )
+            _LOGGER.error('Unexpected error: %s', format(ex) )
 
+        finally:
+            _LOGGER.debug('exiting read_loop()' )
 
     def _read(self):
 
@@ -177,7 +198,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     state = switcher.get(packet[2:3])
 
                     if state is None:
-                        _LOGGER.warn("Unknow status packet is x82 x01 %s", packet[2:3])
+                        _LOGGER.debug("Unknown status packet is x82 x01 %s", packet[2:3])
 
                     elif state != "Heartbeat?" and state !="Key Press":
                         break
@@ -187,6 +208,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             _LOGGER.warning("File or data not present at the moment: %s",
                             self._file_path)
             return 'Failed'
+
+        except Exception as ex:
+            _LOGGER.error('Unexpected error: %s', format(ex) )
+            return 'Failed'
+
 
         return state
 
@@ -266,13 +292,22 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             "*": b'\x8f'
         }
 
-        packet_no = 0
-        for c in payload:
-            packet_no +=1
-            packet = b'\x00\x02\x01' + switcher.get(c)
-            _LOGGER.debug('sending packet %i, message: %s', packet_no, packet)
-            self._sendPacket(packet)
-            time.sleep(0.3) 
+        try:
+            self._lock.acquire()
+
+            packet_no = 0
+            for c in payload:
+                packet_no +=1
+                packet = b'\x00\x02\x01' + switcher.get(c)
+                _LOGGER.debug('sending packet %i, message: %s', packet_no, packet)
+                self._sendPacket(packet)
+
+        except Exception as ex:
+                    _LOGGER.error('Unexpected error: %s', format(ex) )
+
+        finally:
+            self._lock.release()
+
 
     def _sendPacket(self, packet):
         f = open(self._file_path, 'wb')
@@ -282,8 +317,8 @@ class JablotronAlarm(alarm.AlarmControlPanel):
     def _startup_message(self):
         """ Send Start Message to panel"""
 
-        _LOGGER.debug('About to send startup message')
-        time.sleep(10)
+#        _LOGGER.debug('About to send startup message')
+#        time.sleep(10)
 
         _LOGGER.debug('Sending startup message')
         self._sendPacket(b'\x00\x00\x01\x01')
