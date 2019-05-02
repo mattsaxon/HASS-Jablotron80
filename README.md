@@ -27,7 +27,7 @@ alarm_control_panel:
     code_disarm_required: True
 ```
 
-Note 1: Because my serial cable presents as a HID device there format is /dev/hidraw[x], others that present as serial may be at /dev/usbtty0 or similar
+Note 1: Because my serial cable presents as a HID device there format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar
 Note 2: if you supply a code, this is used as the default code to arm/disarm it
 
 ## Future
