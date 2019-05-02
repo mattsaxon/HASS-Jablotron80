@@ -28,7 +28,22 @@ alarm_control_panel:
 ```
 
 Note 1: Because my serial cable presents as a HID device there format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar
+
 Note 2: if you supply a code, this is used as the default code to arm/disarm it
+
+## Debug
+
+If you have issues with this, I'd be happy to work with you on improving the code
+
+Please post details of the issue with the appropriate logs entries
+
+Change configuration.yaml to include:
+
+```
+logger:
+  logs:
+    custom_components.jablotron: debug
+```
 
 ## Future
 
