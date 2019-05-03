@@ -53,9 +53,10 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._f = None
         self._hass = hass
         self._config = config
-        
+        self._model = 'Unknown'
         self._lock = threading.BoundedSemaphore()
         self._stop = threading.Event()
+        self._data_flowing = threading.Event()
 
         try:         
             hass.bus.async_listen('homeassistant_stop', self.shutdown_threads)
@@ -63,6 +64,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             from concurrent.futures import ThreadPoolExecutor
             self._io_pool_exc = ThreadPoolExecutor(max_workers=5)    
             self._read_loop_future = self._io_pool_exc.submit(self._read_loop)
+            self._watcher_loop_future = self._io_pool_exc.submit(self._watcher_loop)
             self._io_pool_exc.submit(self._startup_message)
 
         except Exception as ex:
@@ -122,6 +124,17 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
             self.async_schedule_update_ha_state()
 
+    def _watcher_loop(self):
+
+        while not self._stop.is_set():
+            
+            if not self._data_flowing.wait(10):
+                _LOGGER.warn("Data has not been received for 10 seconds, retry startup message")
+                self._startup_message()         
+            else:
+               _LOGGER.debug("Data is flowing, wait 10 seconds before checking again")
+               time.sleep(10)
+
     def _read_loop(self):
 
         try:
@@ -135,7 +148,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                 new_state = self._read()
 
                 if new_state != self._state:
-                    _LOGGER.info("Jabltron state change: %s to %s", self._state, new_state )
+                    _LOGGER.info("Jablotron state change: %s to %s", self._state, new_state )
                     self._state = new_state
 
                     asyncio.run_coroutine_threadsafe(self._update(), self._hass.loop)                   
@@ -184,10 +197,14 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'\x03': STATE_ALARM_ARMED_AWAY, # Set (Full)
             b'\x83': STATE_ALARM_ARMING # Setting (Full)
         }
-        
+               
         try:
             while True:
+
+                self._data_flowing.clear()
                 packet = self._f.read(64)
+                self._data_flowing.set()
+
                 if not packet:
                     _LOGGER.warn("No packets")
                     self._available = False
@@ -196,6 +213,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                 self._available = True
 
                 if packet[:2] == b'\x82\x01': # Jablotron JA-82
+                    self._model = 'Jablotron JA-80 Series'
                     state = ja82codes.get(packet[2:3])
 
                     if state is None:
@@ -205,6 +223,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                         break
 
                 elif packet[:2] == b'\x51\x22': # Jablotron JA-101
+                    self._model = 'Jablotron JA-100 Series'
                     state = ja101codes.get(packet[2:3])
 
                     if state is None:
@@ -214,10 +233,12 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                         self._startup_message() # let's try sending another startup message here!
                         break
 
-                elif packet[:1] == b'\x82': # debugging for additional JA-82 info
+                elif packet[:1] == b'\x82': 
+                    pass # recognised, but as yet undeciphered JA-82 packets 
 
-                    if packet[1:2] == b'\x03':  
-                        _LOGGER.debug("Data attribute for 03 type packet is: %s", packet[4:8])
+#                    if packet[1:2] == b'\x07': # debugging for additional JA-82 info
+#                        if ja82codes.get(packet[2:3]) is None:  
+#                            _LOGGER.debug("Unknown Data attribute for 07 type packet is: %s", packet[2:7])
 
                 elif packet[:1] == b'\xd0' or packet[:1] == b'\xd2' or packet[:1] == b'\xd8':
                     pass # recognised, but as yet undeciphered JA-101 packets 
@@ -343,3 +364,4 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
         _LOGGER.debug('Sending startup message')
         self._sendPacket(b'\x00\x00\x01\x01')
+        _LOGGER.debug('Successfully sent startup message')
