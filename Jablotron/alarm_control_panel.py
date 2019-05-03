@@ -211,6 +211,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                         _LOGGER.debug("Unknown status packet is x51 x22 %s", packet[2:3])
 
                     elif state != "Heartbeat?" and state !="Key Press":
+                        self._startup_message() # let's try sending another startup message here!
                         break
 
                 elif packet[:1] == b'\x82': # debugging for additional JA-82 info
@@ -339,9 +340,6 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
     def _startup_message(self):
         """ Send Start Message to panel"""
-
-#        _LOGGER.debug('About to send startup message')
-#        time.sleep(10)
 
         _LOGGER.debug('Sending startup message')
         self._sendPacket(b'\x00\x00\x01\x01')
