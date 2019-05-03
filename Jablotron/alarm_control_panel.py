@@ -10,7 +10,7 @@ import homeassistant.components.alarm_control_panel as alarm
 from homeassistant.const import (
     CONF_CODE, CONF_DEVICE, CONF_NAME, CONF_VALUE_TEMPLATE,
     STATE_ALARM_ARMED_AWAY, STATE_ALARM_ARMED_HOME, STATE_ALARM_ARMED_NIGHT,
-    STATE_ALARM_DISARMED, STATE_ALARM_PENDING, STATE_ALARM_TRIGGERED)
+    STATE_ALARM_DISARMED, STATE_ALARM_PENDING, STATE_ALARM_ARMING, STATE_ALARM_TRIGGERED)
 from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -23,17 +23,7 @@ CONF_SERIAL_PORT = 'serial_port'
 
 CONF_CODE_ARM_REQUIRED = 'code_arm_required'
 CONF_CODE_DISARM_REQUIRED = 'code_disarm_required'
-CONF_PAYLOAD_DISARM = 'payload_disarm'
-CONF_PAYLOAD_ARM_HOME = 'payload_arm_home'
-CONF_PAYLOAD_ARM_AWAY = 'payload_arm_away'
-CONF_PAYLOAD_ARM_NIGHT = 'payload_arm_night'
-CONF_COMMAND_TEMPLATE = 'command_template'
 
-DEFAULT_COMMAND_TEMPLATE = '{{action}}'
-DEFAULT_ARM_NIGHT = 'ARM_NIGHT'
-DEFAULT_ARM_AWAY = 'ARM_AWAY'
-DEFAULT_ARM_HOME = 'ARM_HOME'
-DEFAULT_DISARM = 'DISARM'
 DEFAULT_NAME = 'Jablotron Alarm'
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_SERIAL_PORT): cv.string,
@@ -86,6 +76,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._stop.set()
 
         _LOGGER.debug('exiting handle_shutdown()' )
+
+#    @property
+#    def unique_id(self):
+#        """Return a unique ID."""
+#        return 'alarm_control_panel.jablotron.test'
 
     @property
     def should_poll(self):
@@ -166,7 +161,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & B)
             b'Q': STATE_ALARM_PENDING, # Setting (Zone A)
             b'R': STATE_ALARM_PENDING, # Setting (Zones A & B)
-            b'S': STATE_ALARM_PENDING, # Setting (Full)
+            b'S': STATE_ALARM_ARMING, # Setting (Full)
             b'G': STATE_ALARM_TRIGGERED, 
             b'\xff': "Heartbeat?", # 25 second heatbeat
             b'\xed': "Heartbeat?",
@@ -202,6 +197,13 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
                     elif state != "Heartbeat?" and state !="Key Press":
                         break
+
+                elif packet[:1] != b'\x82':
+                    _LOGGER.error("Unrecognised data stream, device type likley not a not JA-82 control panel? %s", packet)
+                    self._stop.set() 
+
+                elif packet[1:2] == b'\x02':  
+                    _LOGGER.debug("Data attribute for 02 type packet is: %s", packet[2:4])
 
         except (IndexError, FileNotFoundError, IsADirectoryError,
                 UnboundLocalError, OSError):
