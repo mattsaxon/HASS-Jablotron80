@@ -154,11 +154,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
     def _read(self):
 
-        switcher = {
+        ja82codes = {
             b'@': STATE_ALARM_DISARMED,
             b'A': STATE_ALARM_ARMED_HOME, # Set (Zone A)
             b'B': STATE_ALARM_ARMED_NIGHT, # Set (Zone A & B)
-            b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & B)
+            b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & C)
             b'Q': STATE_ALARM_PENDING, # Setting (Zone A)
             b'R': STATE_ALARM_PENDING, # Setting (Zones A & B)
             b'S': STATE_ALARM_ARMING, # Setting (Full)
@@ -178,6 +178,12 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'\x8e': "Key Press",
             b'\x8f': "Key Press"
         }
+
+        ja101codes = {
+            b'\x01': STATE_ALARM_DISARMED,
+            b'\x03': STATE_ALARM_ARMED_AWAY, # Set (Full)
+            b'\x83': STATE_ALARM_ARMING # Setting (Full)
+        }
         
         try:
             while True:
@@ -189,8 +195,8 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
                 self._available = True
 
-                if packet[:2] == b'\x82\x01':
-                    state = switcher.get(packet[2:3])
+                if packet[:2] == b'\x82\x01': # Jablotron JA-82
+                    state = ja82codes.get(packet[2:3])
 
                     if state is None:
                         _LOGGER.debug("Unknown status packet is x82 x01 %s", packet[2:3])
@@ -198,12 +204,27 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     elif state != "Heartbeat?" and state !="Key Press":
                         break
 
-                elif packet[:1] != b'\x82':
-                    _LOGGER.error("Unrecognised data stream, device type likley not a not JA-82 control panel? %s", packet)
+                elif packet[:2] == b'\x51\x22': # Jablotron JA-101
+                    state = ja101codes.get(packet[2:3])
+
+                    if state is None:
+                        _LOGGER.debug("Unknown status packet is x51 x22 %s", packet[2:3])
+
+                    elif state != "Heartbeat?" and state !="Key Press":
+                        break
+
+                elif packet[:1] == b'\x82': # debugging for additional JA-82 info
+
+                    if packet[1:2] == b'\x03':  
+                        _LOGGER.debug("Data attribute for 03 type packet is: %s", packet[4:8])
+
+                elif packet[:1] == b'\xd0' or packet[:1] == b'\xd2' or packet[:1] == b'\xd8':
+                    pass # recognised, but as yet undeciphered JA-101 packets 
+
+                else:         
+                    _LOGGER.error("Unrecognised data stream, device type likely not a JA-82 or JA101 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
                     self._stop.set() 
 
-                elif packet[1:2] == b'\x02':  
-                    _LOGGER.debug("Data attribute for 02 type packet is: %s", packet[2:4])
 
         except (IndexError, FileNotFoundError, IsADirectoryError,
                 UnboundLocalError, OSError):
