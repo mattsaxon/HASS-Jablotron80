@@ -193,9 +193,12 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         }
 
         ja101codes = {
-            b'\x01': STATE_ALARM_DISARMED,
+            b'\x01': STATE_ALARM_DISARMED, # unsure which zone
+            b'\x21': STATE_ALARM_DISARMED, # unsure which zone
+            b'\x83': STATE_ALARM_ARMING, # Setting (Full)
+            b'\xa3': STATE_ALARM_ARMING, # unsure which zone
             b'\x03': STATE_ALARM_ARMED_AWAY, # Set (Full)
-            b'\x83': STATE_ALARM_ARMING # Setting (Full)
+            b'\x23': STATE_ALARM_ARMED_AWAY  # unsure which zone
         }
                
         try:
@@ -232,7 +235,16 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     elif state != "Heartbeat?" and state !="Key Press":
                         self._startup_message() # let's try sending another startup message here!
                         break
+                        
+                elif packet[:2] == b'\x52\x07': # PIR 1 data?
+                    _LOGGER.info("PIR 1 data? %s", packet[0:5])
 
+                elif packet[:2] == b'\x52\x09': # PIR 2 data?
+                    _LOGGER.info("PIR 2 data? %s", packet[0:5])
+                      
+                elif packet[:2] == b'\x90\x19': # Unknown packet, but also receiving from JA-101
+                    _LOGGER.info("Unknown packet: %s", packet[0:5])
+                      
                 elif packet[:1] == b'\x82': 
                     pass # recognised, but as yet undeciphered JA-82 packets 
 
@@ -244,14 +256,14 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     pass # recognised, but as yet undeciphered JA-101 packets 
 
                 else:         
-                    _LOGGER.error("Unrecognised data stream, device type likely not a JA-82 or JA101 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
-                    self._stop.set() 
+                    _LOGGER.info("Unknown packet: %s", packet)
+#                    _LOGGER.error("Unrecognised data stream, device type likely not a JA-82 or JA101 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
+#                    self._stop.set() 
 
 
         except (IndexError, FileNotFoundError, IsADirectoryError,
                 UnboundLocalError, OSError):
-            _LOGGER.warning("File or data not present at the moment: %s",
-                            self._file_path)
+            _LOGGER.warning("File or data not present at the moment: %s", self._file_path)
             return 'Failed'
 
         except Exception as ex:
@@ -321,31 +333,71 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         if code is not None:
             payload += code
         
-        switcher = {
-            "0": b'\x80',
-            "1": b'\x81',
-            "2": b'\x82',
-            "3": b'\x83',
-            "4": b'\x84',
-            "5": b'\x85',
-            "6": b'\x86',
-            "7": b'\x87',
-            "8": b'\x88',
-            "9": b'\x89',
-            "#": b'\x8e',
-            "?": b'\x8e',
-            "*": b'\x8f'
-        }
+        if self._model == 'Jablotron JA-80 Series':
+            switcher = {
+                "0": b'\x80',
+                "1": b'\x81',
+                "2": b'\x82',
+                "3": b'\x83',
+                "4": b'\x84',
+                "5": b'\x85',
+                "6": b'\x86',
+                "7": b'\x87',
+                "8": b'\x88',
+                "9": b'\x89',
+                "#": b'\x8e',
+                "?": b'\x8e',
+                "*": b'\x8f'
+            }
+           
+        elif self._model == 'Jablotron JA-100 Series':
+            switcher = {
+                "0": b'\x30',
+                "1": b'\x31',
+                "2": b'\x32',
+                "3": b'\x33',
+                "4": b'\x34',
+                "5": b'\x35',
+                "6": b'\x36',
+                "7": b'\x37',
+                "8": b'\x38',
+                "9": b'\x39'
+            }
+        else:
+            switcher = {}
 
         try:
             self._lock.acquire()
 
-            packet_no = 0
-            for c in payload:
-                packet_no +=1
-                packet = b'\x00\x02\x01' + switcher.get(c)
-                _LOGGER.debug('sending packet %i, message: %s', packet_no, packet)
+            if self._model == 'Jablotron JA-80 Series':
+
+                packet_no = 0
+                for c in payload:
+                    packet_no +=1
+                    packet = b'\x00\x02\x01' + switcher.get(c)
+                    _LOGGER.debug('sending packet %i, message: %s', packet_no, packet)
+                    self._sendPacket(packet)
+              
+            elif self._model == 'Jablotron JA-100 Series':
+
+                packet_code = b''
+                for c in code:
+                    packet_code = packet_code + switcher.get(c)
+
+                packet = b'\x80\x08\x03\x39\x39\x39' + packet_code
+#                _LOGGER.info('Submitting alarmcode...')
                 self._sendPacket(packet)
+
+                if action == "*1":
+                    packet = b'\x80\x02\x0d\xa0'
+                    _LOGGER.info('Arm away.')
+                    self._sendPacket(packet)
+                if action == "*2":
+                    packet = b'\x80\x02\x0d\x90'
+                    _LOGGER.info('Arm home.')
+                    self._sendPacket(packet)
+            else:
+                _LOGGER.error('Unknown device, no actions defined.')
 
         except Exception as ex:
                     _LOGGER.error('Unexpected error: %s', format(ex) )
