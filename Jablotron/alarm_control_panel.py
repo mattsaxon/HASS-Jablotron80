@@ -128,12 +128,12 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
         while not self._stop.is_set():
             
-            if not self._data_flowing.wait(2):
-                _LOGGER.warn("Data has not been received for 2 seconds, retry startup message")
+            if not self._data_flowing.wait(10):
+                _LOGGER.warn("Data has not been received for 10 seconds, retry startup message")
                 self._startup_message()         
             else:
-               # _LOGGER.debug("Data is flowing, wait 10 seconds before checking again")
-               time.sleep(5)
+               _LOGGER.debug("Data is flowing, wait 10 seconds before checking again")
+               time.sleep(10)
 
     def _read_loop(self):
 
@@ -415,12 +415,6 @@ class JablotronAlarm(alarm.AlarmControlPanel):
     def _startup_message(self):
         """ Send Start Message to panel"""
 
-        try:
-            self._lock.acquire()
-
-            _LOGGER.debug('Sending startup message')
-            self._sendPacket(b'\x00\x00\x01\x01')
-            _LOGGER.debug('Successfully sent startup message')
-
-        finally:
-            self._lock.release()
+        _LOGGER.debug('Sending startup message')
+        self._sendPacket(b'\x00\x00\x01\x01')
+        _LOGGER.debug('Successfully sent startup message')
