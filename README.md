@@ -5,8 +5,9 @@ Home Assistant platform to control Jablotron 80 control panel via serial connect
 ** Tested with RPi using a JA-82T USB/Serial cable to a JA-82K control panel **
 
 ## Supported devices
-- Probably any JA-80 control panel
-- Probably other serial calbe, such as JA-80T or a stock one
+- Probably any JA-80 series control panel
+- Whilst I would have expected this to work with other USB/serial cables, the only user I'm aware of with a JA-80T is not currently working
+- For JA-100 series devices, this component can report status, but not set/unset the system
 
 ## Installation
 To use this platform, copy alarm_control_panel.py to "<home assistant config dir>/custom_components/jablotron/" and add the config below to configuration.yaml
