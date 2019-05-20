@@ -407,7 +407,10 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     _LOGGER.debug('sending packet: %s', packet)
                     self._sendPacket(packet)
                 elif action == "*2":
-                    _LOGGER.warn('Arm home, but no actions defined yet! Use arm away instead, until arm home packets have been sniffed.')
+                    packet = b'\x80\x02\x0d\xb0'
+                    _LOGGER.info('Arm at home.')
+                    _LOGGER.debug('sending packet: %s', packet)
+self._sendPacket(packet)
                 elif action == "*3":
                     _LOGGER.warn('Arm night, but no actions defined yet! Use arm away instead, until arm night packets have been sniffed.')
                 else:
