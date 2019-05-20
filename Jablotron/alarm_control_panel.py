@@ -197,8 +197,10 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'\x21': STATE_ALARM_DISARMED, # unsure which zone
             b'\x83': STATE_ALARM_ARMING, # Setting (Full)
             b'\xa3': STATE_ALARM_ARMING, # unsure which zone
+            b'\x82': STATE_ALARM_ARMING, # Setting (Partial - at home)
             b'\x03': STATE_ALARM_ARMED_AWAY, # Set (Full)
-            b'\x23': STATE_ALARM_ARMED_AWAY  # unsure which zone
+            b'\x23': STATE_ALARM_ARMED_AWAY,  # unsure which zone
+            b'\x02': STATE_ALARM_ARMED_HOME  # Set (Partial - at home)
         }
                
         try:
@@ -237,13 +239,13 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                         break
                         
                 elif packet[:2] == b'\x52\x07': # PIR 1 data?
-                    _LOGGER.info("PIR 1 data? %s", packet[0:5])
+                    _LOGGER.debug("PIR 1 data? %s", packet[0:5])
 
                 elif packet[:2] == b'\x52\x09': # PIR 2 data?
-                    _LOGGER.info("PIR 2 data? %s", packet[0:5])
+                    _LOGGER.debug("PIR 2 data? %s", packet[0:5])
                       
                 elif packet[:2] == b'\x90\x19': # Unknown packet, but also receiving from JA-101
-                    _LOGGER.info("Unknown packet: %s", packet[0:5])
+                    _LOGGER.debug("Unknown packet: %s", packet[0:5])
                       
                 elif packet[:1] == b'\x82': 
                     pass # recognised, but as yet undeciphered JA-82 packets 
@@ -256,7 +258,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     pass # recognised, but as yet undeciphered JA-101 packets 
 
                 else:         
-                    _LOGGER.info("Unknown packet: %s", packet)
+                    _LOGGER.debug("Unknown packet: %s", packet)
 #                    _LOGGER.error("Unrecognised data stream, device type likely not a JA-82 or JA101 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
 #                    self._stop.set() 
 
@@ -274,6 +276,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         return state
 
     async def async_alarm_disarm(self, code=None):
+        _LOGGER.debug("Send disarm command")
         """Send disarm command.
 
         This method is a coroutine.
@@ -289,6 +292,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, payload)
 
     async def async_alarm_arm_home(self, code=None):
+        _LOGGER.debug("Send arm home command")
         """Send arm home command.
 
         This method is a coroutine.
@@ -301,6 +305,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, action)
 
     async def async_alarm_arm_away(self, code=None):
+        _LOGGER.debug("Send arm away command")
         """Send arm away command.
 
         This method is a coroutine.
@@ -313,6 +318,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, action)
 
     async def async_alarm_arm_night(self, code=None):
+        _LOGGER.debug("Send arm night command")
         """Send arm night command.
 
         This method is a coroutine.
@@ -325,6 +331,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, action)
 
     def _sendKeys(self, code, action):
+        _LOGGER.debug("Sending keys")
         """Send via serial port."""
         payload = action
 
@@ -333,6 +340,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         if code is not None:
             payload += code
         
+        _LOGGER.debug("Using keys for model %s", self._model)
         if self._model == 'Jablotron JA-80 Series':
             switcher = {
                 "0": b'\x80',
@@ -385,17 +393,28 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     packet_code = packet_code + switcher.get(c)
 
                 packet = b'\x80\x08\x03\x39\x39\x39' + packet_code
-#                _LOGGER.info('Submitting alarmcode...')
+                _LOGGER.debug("Submitting alarmcode...")
                 self._sendPacket(packet)
 
-                if action == "*1":
+                if action == "*0":
+                    packet = b'\x80\x02\x0d\x90'
+                    _LOGGER.info('Disarm.')
+                    _LOGGER.debug('sending packet: %s', packet)
+                    self._sendPacket(packet)
+                elif action == "*1":
                     packet = b'\x80\x02\x0d\xa0'
                     _LOGGER.info('Arm away.')
+                    _LOGGER.debug('sending packet: %s', packet)
                     self._sendPacket(packet)
-                if action == "*2":
-                    packet = b'\x80\x02\x0d\x90'
-                    _LOGGER.info('Arm home.')
-                    self._sendPacket(packet)
+                elif action == "*2":
+                    packet = b'\x80\x02\x0d\xb0'
+                    _LOGGER.info('Arm at home.')
+                    _LOGGER.debug('sending packet: %s', packet)
+self._sendPacket(packet)
+                elif action == "*3":
+                    _LOGGER.warn('Arm night, but no actions defined yet! Use arm away instead, until arm night packets have been sniffed.')
+                else:
+                    _LOGGER.info("Unknown action: %s", action)
             else:
                 _LOGGER.error('Unknown device, no actions defined.')
 
