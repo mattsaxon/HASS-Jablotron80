@@ -200,7 +200,8 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'\x82': STATE_ALARM_ARMING, # Setting (Partial - at home)
             b'\x03': STATE_ALARM_ARMED_AWAY, # Set (Full)
             b'\x23': STATE_ALARM_ARMED_AWAY,  # unsure which zone
-            b'\x02': STATE_ALARM_ARMED_HOME  # Set (Partial - at home)
+            b'\x02': STATE_ALARM_ARMED_HOME,  # Set (Partial - at home)
+            b'\xf4': STATE_ALARM_TRIGGERED  #NEED TO DOUBLECHECK THIS CODE!
         }
                
         try:
@@ -227,7 +228,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     elif state != "Heartbeat?" and state !="Key Press":
                         break
 
-                elif packet[:2] == b'\x51\x22': # Jablotron JA-101
+                elif packet[:2] == b'\x51\x22' or packet[:2] == b'\x44\x55': # Jablotron JA-101 - NEED TO CHECK THIS CODE
                     self._model = 'Jablotron JA-100 Series'
                     state = ja101codes.get(packet[2:3])
 
