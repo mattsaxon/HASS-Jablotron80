@@ -200,7 +200,8 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'\x82': STATE_ALARM_ARMING, # Setting (Partial - at home)
             b'\x03': STATE_ALARM_ARMED_AWAY, # Set (Full)
             b'\x23': STATE_ALARM_ARMED_AWAY,  # unsure which zone
-            b'\x02': STATE_ALARM_ARMED_HOME  # Set (Partial - at home)
+            b'\x02': STATE_ALARM_ARMED_HOME,  # Set (Partial - at home)
+            b'\x7f': STATE_ALARM_TRIGGERED  #alarm activated! (this code is for 4405, not for 5122!) 
         }
                
         try:
@@ -227,7 +228,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     elif state != "Heartbeat?" and state !="Key Press":
                         break
 
-                elif packet[:2] == b'\x51\x22': # Jablotron JA-101
+                elif packet[:2] == b'\x51\x22' or packet[:2] == b'\x44\x05': # Jablotron JA-101 
                     self._model = 'Jablotron JA-100 Series'
                     state = ja101codes.get(packet[2:3])
 
@@ -407,7 +408,10 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     _LOGGER.debug('sending packet: %s', packet)
                     self._sendPacket(packet)
                 elif action == "*2":
-                    _LOGGER.warn('Arm home, but no actions defined yet! Use arm away instead, until arm home packets have been sniffed.')
+                    packet = b'\x80\x02\x0d\xb0'
+                    _LOGGER.info('Arm at home.')
+                    _LOGGER.debug('sending packet: %s', packet)
+                    self._sendPacket(packet)
                 elif action == "*3":
                     _LOGGER.warn('Arm night, but no actions defined yet! Use arm away instead, until arm night packets have been sniffed.')
                 else:
