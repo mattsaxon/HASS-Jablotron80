@@ -132,7 +132,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                 _LOGGER.warn("Data has not been received for 2 seconds, retry startup message")
                 self._startup_message()         
             else:
-               # _LOGGER.debug("Data is flowing, wait 10 seconds before checking again")
+               _LOGGER.debug("Data is flowing, wait 5 seconds before checking again")
                time.sleep(5)
 
     def _read_loop(self):
@@ -193,9 +193,15 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         }
 
         ja101codes = {
-            b'\x01': STATE_ALARM_DISARMED,
+            b'\x01': STATE_ALARM_DISARMED, # unsure which zone
+            b'\x21': STATE_ALARM_DISARMED, # unsure which zone
+            b'\x83': STATE_ALARM_ARMING, # Setting (Full)
+            b'\xa3': STATE_ALARM_ARMING, # unsure which zone
+            b'\x82': STATE_ALARM_ARMING, # Setting (Partial - at home)
             b'\x03': STATE_ALARM_ARMED_AWAY, # Set (Full)
-            b'\x83': STATE_ALARM_ARMING # Setting (Full)
+            b'\x23': STATE_ALARM_ARMED_AWAY,  # unsure which zone
+            b'\x02': STATE_ALARM_ARMED_HOME,  # Set (Partial - at home)
+            b'\x7f': STATE_ALARM_TRIGGERED  #alarm activated! (this code is for 4405, not for 5122!) 
         }
                
         try:
@@ -222,7 +228,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     elif state != "Heartbeat?" and state !="Key Press":
                         break
 
-                elif packet[:2] == b'\x51\x22': # Jablotron JA-101
+                elif packet[:2] == b'\x51\x22' or packet[:2] == b'\x44\x05': # Jablotron JA-101 
                     self._model = 'Jablotron JA-100 Series'
                     state = ja101codes.get(packet[2:3])
 
@@ -232,7 +238,16 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     elif state != "Heartbeat?" and state !="Key Press":
                         self._startup_message() # let's try sending another startup message here!
                         break
+                        
+                elif packet[:2] == b'\x52\x07': # PIR 1 data?
+                    _LOGGER.debug("PIR 1 data? %s", packet[0:5])
 
+                elif packet[:2] == b'\x52\x09': # PIR 2 data?
+                    _LOGGER.debug("PIR 2 data? %s", packet[0:5])
+                      
+                elif packet[:2] == b'\x90\x19': # Unknown packet, but also receiving from JA-101
+                    _LOGGER.debug("Unknown packet: %s", packet[0:5])
+                      
                 elif packet[:1] == b'\x82': 
                     pass # recognised, but as yet undeciphered JA-82 packets 
 
@@ -244,14 +259,14 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     pass # recognised, but as yet undeciphered JA-101 packets 
 
                 else:         
-                    _LOGGER.error("Unrecognised data stream, device type likely not a JA-82 or JA101 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
-                    self._stop.set() 
+                    _LOGGER.debug("Unknown packet: %s", packet)
+#                    _LOGGER.error("Unrecognised data stream, device type likely not a JA-82 or JA101 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
+#                    self._stop.set() 
 
 
         except (IndexError, FileNotFoundError, IsADirectoryError,
                 UnboundLocalError, OSError):
-            _LOGGER.warning("File or data not present at the moment: %s",
-                            self._file_path)
+            _LOGGER.warning("File or data not present at the moment: %s", self._file_path)
             return 'Failed'
 
         except Exception as ex:
@@ -262,6 +277,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         return state
 
     async def async_alarm_disarm(self, code=None):
+        _LOGGER.debug("Send disarm command")
         """Send disarm command.
 
         This method is a coroutine.
@@ -277,6 +293,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, payload)
 
     async def async_alarm_arm_home(self, code=None):
+        _LOGGER.debug("Send arm home command")
         """Send arm home command.
 
         This method is a coroutine.
@@ -289,6 +306,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, action)
 
     async def async_alarm_arm_away(self, code=None):
+        _LOGGER.debug("Send arm away command")
         """Send arm away command.
 
         This method is a coroutine.
@@ -301,6 +319,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, action)
 
     async def async_alarm_arm_night(self, code=None):
+        _LOGGER.debug("Send arm night command")
         """Send arm night command.
 
         This method is a coroutine.
@@ -313,6 +332,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._sendKeys(send_code, action)
 
     def _sendKeys(self, code, action):
+        _LOGGER.debug("Sending keys")
         """Send via serial port."""
         payload = action
 
@@ -321,31 +341,83 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         if code is not None:
             payload += code
         
-        switcher = {
-            "0": b'\x80',
-            "1": b'\x81',
-            "2": b'\x82',
-            "3": b'\x83',
-            "4": b'\x84',
-            "5": b'\x85',
-            "6": b'\x86',
-            "7": b'\x87',
-            "8": b'\x88',
-            "9": b'\x89',
-            "#": b'\x8e',
-            "?": b'\x8e',
-            "*": b'\x8f'
-        }
+        _LOGGER.debug("Using keys for model %s", self._model)
+        if self._model == 'Jablotron JA-80 Series':
+            switcher = {
+                "0": b'\x80',
+                "1": b'\x81',
+                "2": b'\x82',
+                "3": b'\x83',
+                "4": b'\x84',
+                "5": b'\x85',
+                "6": b'\x86',
+                "7": b'\x87',
+                "8": b'\x88',
+                "9": b'\x89',
+                "#": b'\x8e',
+                "?": b'\x8e',
+                "*": b'\x8f'
+            }
+           
+        elif self._model == 'Jablotron JA-100 Series':
+            switcher = {
+                "0": b'\x30',
+                "1": b'\x31',
+                "2": b'\x32',
+                "3": b'\x33',
+                "4": b'\x34',
+                "5": b'\x35',
+                "6": b'\x36',
+                "7": b'\x37',
+                "8": b'\x38',
+                "9": b'\x39'
+            }
+        else:
+            switcher = {}
 
         try:
             self._lock.acquire()
 
-            packet_no = 0
-            for c in payload:
-                packet_no +=1
-                packet = b'\x00\x02\x01' + switcher.get(c)
-                _LOGGER.debug('sending packet %i, message: %s', packet_no, packet)
+            if self._model == 'Jablotron JA-80 Series':
+
+                packet_no = 0
+                for c in payload:
+                    packet_no +=1
+                    packet = b'\x00\x02\x01' + switcher.get(c)
+                    _LOGGER.debug('sending packet %i, message: %s', packet_no, packet)
+                    self._sendPacket(packet)
+              
+            elif self._model == 'Jablotron JA-100 Series':
+
+                packet_code = b''
+                for c in code:
+                    packet_code = packet_code + switcher.get(c)
+
+                packet = b'\x80\x08\x03\x39\x39\x39' + packet_code
+                _LOGGER.debug("Submitting alarmcode...")
                 self._sendPacket(packet)
+
+                if action == "*0":
+                    packet = b'\x80\x02\x0d\x90'
+                    _LOGGER.info('Disarm.')
+                    _LOGGER.debug('sending packet: %s', packet)
+                    self._sendPacket(packet)
+                elif action == "*1":
+                    packet = b'\x80\x02\x0d\xa0'
+                    _LOGGER.info('Arm away.')
+                    _LOGGER.debug('sending packet: %s', packet)
+                    self._sendPacket(packet)
+                elif action == "*2":
+                    packet = b'\x80\x02\x0d\xb0'
+                    _LOGGER.info('Arm at home.')
+                    _LOGGER.debug('sending packet: %s', packet)
+                    self._sendPacket(packet)
+                elif action == "*3":
+                    _LOGGER.warn('Arm night, but no actions defined yet! Use arm away instead, until arm night packets have been sniffed.')
+                else:
+                    _LOGGER.info("Unknown action: %s", action)
+            else:
+                _LOGGER.error('Unknown device, no actions defined.')
 
         except Exception as ex:
                     _LOGGER.error('Unexpected error: %s', format(ex) )
@@ -363,12 +435,18 @@ class JablotronAlarm(alarm.AlarmControlPanel):
     def _startup_message(self):
         """ Send Start Message to panel"""
 
-        try:
-            self._lock.acquire()
+        if self._model == 'Jablotron JA-80 Series':
+            try:
+                self._lock.acquire()
 
+                _LOGGER.debug('Sending startup message')
+                self._sendPacket(b'\x00\x00\x01\x01')
+                _LOGGER.debug('Successfully sent startup message')
+
+            finally:
+                self._lock.release()
+
+        else:
             _LOGGER.debug('Sending startup message')
             self._sendPacket(b'\x00\x00\x01\x01')
             _LOGGER.debug('Successfully sent startup message')
-
-        finally:
-            self._lock.release()
