@@ -1,13 +1,14 @@
 # HASS-Jablotron80
 
-Home Assistant platform to control Jablotron 80 and 10 alarm control panel via serial connection.
+Home Assistant platform to control Jablotron 80 alarm control panel via serial connection.
+
+For 100 series devices please see other repo here https://github.com/plaksnor/HASS-JablotronSystem
 
 ** Model 80 tested with RPi using a JA-82T USB/Serial cable to a JA-82K control panel **
-** Model 100 tested using USB cablr to a JA-101K control panel **
 
 ## Supported devices
-- Probably any JA-80 or JA-100 series control panel
-- Whilst I would have expected this to work with other USB/serial cables, the only user I'm aware of with a JA-80T is not currently working
+- Probably any JA-80 control panel
+- Whilst I would have expected this to work with other USB/serial cables, we are still working though various issues
 
 ## Installation
 To use this platform, copy alarm_control_panel.py to "<home assistant config dir>/custom_components/jablotron/" and add the config below to configuration.yaml
@@ -52,6 +53,12 @@ logger:
     custom_components.jablotron: debug
 ```
 
+## Other Info
+
+There is a thread discussing this integration [here](https://community.home-assistant.io/t/jablotron-ja-80-series-and-ja-100-series-alarm-integration/113315/3), however for issues, please raise the issue in this GitHub repo. 
+
 ## Future
 
-Will depend on feedback I receive as to if others are interested in using, or collaborating on improving this.
+I'm very happy to work with others to enhance this component and get others installation working.
+
+Please raise an issue [here](https://github.com/mattsaxon/HASS-Jablotron80/issues)  
