@@ -29,7 +29,7 @@ alarm_control_panel:
     code_disarm_required: True
 ```
 
-Note 1: Because my serial cable presents as a HID device there format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar. Use the following command line to identity the appropriate device
+Note 1: Because my serial cable presents as a HID device the format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar. Use the following command line to identity the appropriate device
 
 ```
 $ dmesg | grep usb
