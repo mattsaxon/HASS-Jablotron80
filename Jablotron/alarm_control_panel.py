@@ -21,6 +21,8 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_SERIAL_PORT = 'serial_port'
 
+CONF_CODE_PANEL_ARM_REQUIRED = 'code_panel_arm_required'
+CONF_CODE_PANEL_DISARM_REQUIRED = 'code_panel_disarm_required'
 CONF_CODE_ARM_REQUIRED = 'code_arm_required'
 CONF_CODE_DISARM_REQUIRED = 'code_disarm_required'
 
@@ -30,6 +32,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_CODE): cv.string,
     vol.Optional(CONF_CODE_ARM_REQUIRED, default=False): cv.boolean,
     vol.Optional(CONF_CODE_DISARM_REQUIRED, default=True): cv.boolean,
+    vol.Optional(CONF_CODE_PANEL_ARM_REQUIRED, default=False): cv.boolean,
+    vol.Optional(CONF_CODE_PANEL_DISARM_REQUIRED, default=True): cv.boolean,
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
 })
 
@@ -256,9 +260,13 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
         This method is a coroutine.
         """
+
+        if self._config[CONF_CODE_DISARM_REQUIRED] and not self._validate_code(code, 'disarming'):
+            return
+
         send_code = ""
 
-        if self._config[CONF_CODE_DISARM_REQUIRED]:
+        if self._config[CONF_CODE_PANEL_DISARM_REQUIRED]:
             if code == "":
                 code = self._code
             send_code = code
@@ -273,8 +281,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
         This method is a coroutine.
         """
+        if self._config[CONF_CODE_ARM_REQUIRED] and not self._validate_code(code, 'arming home'):
+            return
+
         send_code = ""
-        if self._config[CONF_CODE_ARM_REQUIRED]:
+        if self._config[CONF_CODE_PANEL_ARM_REQUIRED]:
             send_code = code
 
         action = "*2"
@@ -287,8 +298,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
         This method is a coroutine.
         """
+        if self._config[CONF_CODE_ARM_REQUIRED] and not self._validate_code(code, 'arming away'):
+            return
+
         send_code = ""
-        if self._config[CONF_CODE_ARM_REQUIRED]:
+        if self._config[CONF_CODE_PANEL_ARM_REQUIRED]:
             send_code = code
 
         action = "*1"
@@ -301,8 +315,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
         This method is a coroutine.
         """
+        if self._config[CONF_CODE_ARM_REQUIRED] and not self._validate_code(code, 'arming night'):
+            return
+
         send_code = ""
-        if self._config[CONF_CODE_ARM_REQUIRED]:
+        if self._config[CONF_CODE_PANEL_ARM_REQUIRED]:
             send_code = code
 
         action = "*3"
@@ -349,7 +366,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                 try:
 
                     if self._desired_state == STATE_ALARM_DISARMED:
-                        timeout = 5
+                        timeout = 10
                     else:
                         timeout = 40
 
@@ -414,8 +431,6 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         f.write(packet)
         f.close()        
 
-    # todo: send immediately
-
     def _startup_message(self):
         """ Send Start Message to panel"""
 
@@ -423,3 +438,10 @@ class JablotronAlarm(alarm.AlarmControlPanel):
         self._send_packet(b'\x00\x00\x01\x01')
         _LOGGER.debug('Successfully sent startup message')
 
+    def _validate_code(self, code, state):
+        """Validate given code."""
+        conf_code = self._code
+        check = conf_code is None or code == conf_code
+        if not check:
+            _LOGGER.warning('Wrong code entered for %s', state)
+        return check
