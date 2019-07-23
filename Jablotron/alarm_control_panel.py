@@ -129,8 +129,10 @@ class JablotronAlarm(alarm.AlarmControlPanel):
 
     async def _update(self):
 
+        #_LOGGER.debug('_update called, state: %s', self._state )
         self._updated.set()
         self.async_schedule_update_ha_state()
+        #_LOGGER.debug('_update exited, state: %s', self._state )
 
     def _read_loop(self):
 
@@ -167,11 +169,26 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'A': STATE_ALARM_ARMED_HOME, # Set (Zone A)
             b'B': STATE_ALARM_ARMED_NIGHT, # Set (Zone A & B)
             b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & C)
-            b'D': STATE_ALARM_TRIGGERED, #  This was triggered via 24 Alarm sensor
-            b'G': STATE_ALARM_TRIGGERED, # This was trigerred in a previous test, not sure from which mode
+            b'D': STATE_ALARM_TRIGGERED, #  This was triggered via '24 hour' sensor, when unset
+            b'G': STATE_ALARM_TRIGGERED, # This was trigerred vis s standard sensor, when set
             b'Q': STATE_ALARM_PENDING, # Setting (Zone A)
             b'R': STATE_ALARM_PENDING, # Setting (Zones A & B)
             b'S': STATE_ALARM_ARMING, # Setting (Full)
+            b'\x00': "?",
+            b'\t': "?",
+            b'\n': "?",
+            b'1': "?",  
+            b'8': "?",  
+            b'z': "?",
+            b'F': "?",      
+            b'J': "?",  
+            b'*': "?",
+            b'(': "?",
+            b'\x14': "?",
+            b'\x17': "?",  
+            b'\x19': "?",          
+            b'\x1a': "?",  
+            b'\x1e': "?",                  
             b'\xff': "Heartbeat?", # 25 second heatbeat
             b'\xed': "Heartbeat?",
             b'\xe7': "?",
@@ -223,7 +240,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                         state = ja82codes.get(packet[2:3]) # the state is in the 3rd packet
 
                         if state is None:
-                            # _LOGGER.debug("Unknown status packet is %s", packet[:8])
+                            _LOGGER.warn("Unknown status packet is %s", packet[:8])
                             pass
 
                         elif state != "Heartbeat?" and state !="Key Press" and state !="?" :
@@ -236,8 +253,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                                 state_consistent_count = 0
                                 old_state = state
                                 
-                    #else:
-                    #    _LOGGER.warn("Unknown packet is %s", packet[:8])
+                    elif byte_two == 62: # '>' symbol is received on startup
+                        _LOGGER.debug("Startup response packet is %s", packet[:8])
+
+                    else:
+                        _LOGGER.warn("Unknown packet is %s", packet[:8])
 
                 else:         
                     _LOGGER.error("The data stream is not recongisable as a JA-82 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
@@ -366,9 +386,9 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                 try:
 
                     if self._desired_state == STATE_ALARM_DISARMED:
-                        timeout = 10
+                        timeout = 15
                     else:
-                        timeout = 40
+                        timeout = 45
 
                     self._wait_task = self.loop.create_task(self._updated.wait())
                     await asyncio.wait_for(self._wait_task, timeout)
@@ -378,7 +398,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     _LOGGER.warn('Timed out waiting for change of state, retry')
 
                 except asyncio.CancelledError:
-                    _LOGGER.debug('New desired state set, wait has been cancelled, loop')
+                    _LOGGER.debug('New desired state set, wait has been cancelled, wait for next command')
+                    break
+
+                except Exception as ex:
+                    _LOGGER.error('Unexpected error: %s', format(ex) )
                     break
 
                 retrying = True
