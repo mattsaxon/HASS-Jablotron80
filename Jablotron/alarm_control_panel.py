@@ -163,10 +163,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'A': STATE_ALARM_ARMED_HOME, # Set (Zone A)
             b'B': STATE_ALARM_ARMED_NIGHT, # Set (Zone A & B)
             b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & C)
+            b'D': STATE_ALARM_TRIGGERED, #  This was triggered via 24 Alarm sensor
+            b'G': STATE_ALARM_TRIGGERED, # This was trigerred in a previous test, not sure from which mode
             b'Q': STATE_ALARM_PENDING, # Setting (Zone A)
             b'R': STATE_ALARM_PENDING, # Setting (Zones A & B)
             b'S': STATE_ALARM_ARMING, # Setting (Full)
-            b'G': STATE_ALARM_TRIGGERED, 
             b'\xff': "Heartbeat?", # 25 second heatbeat
             b'\xed': "Heartbeat?",
             b'\xe7': "?",
@@ -211,7 +212,9 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     self._model = 'Jablotron JA-80 Series'
                     byte_two = int.from_bytes(packet[1:2], byteorder='big', signed=False)
                     
-                    if byte_two == 1 and byte_two <= 8: # and byte_two != 2: # all 2nd packets I have seen are between 1 and 8, but 2 packets sometimes have trigger message 
+                    if byte_two >= 1 and byte_two <= 8: # and byte_two != 2: # all 2nd packets I have seen are between 1 and 8, but 2 packets sometimes have trigger message 
+
+                        #_LOGGER.debug("packet is %s", packet[:8])
 
                         state = ja82codes.get(packet[2:3]) # the state is in the 3rd packet
 
