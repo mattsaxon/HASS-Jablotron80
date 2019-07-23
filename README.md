@@ -7,8 +7,8 @@ For 100 series devices please see other repo here https://github.com/plaksnor/HA
 ** Model 80 tested with RPi using a JA-82T USB/Serial cable to a JA-82K control panel **
 
 ## Supported devices
-- Probably any JA-80 control panel
-- Whilst I would have expected this to work with other USB/serial cables, we are still working though various issues
+- Probably any Jablron Oasis 80 series control panel
+- Whilst I would have expected this to work with other USB/serial cables, I haven't had confirmation of others that the JA-82T working yet. I'd be happy to work through issues with anyone having trouble.
 
 ## Installation
 To use this platform, copy alarm_control_panel.py to "<home assistant config dir>/custom_components/jablotron/" and add the config below to configuration.yaml
@@ -29,7 +29,7 @@ alarm_control_panel:
     code_disarm_required: True
 ```
 
-Note 1: Because my serial cable presents as a HID device there format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar. Use the following command line to identity the appropriate device
+Note 1: Because my serial cable presents as a HID device the format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar. Use the following command line to identity the appropriate device
 
 ```
 $ dmesg | grep usb
