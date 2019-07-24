@@ -174,28 +174,39 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'Q': STATE_ALARM_PENDING, # Setting (Zone A)
             b'R': STATE_ALARM_PENDING, # Setting (Zones A & B)
             b'S': STATE_ALARM_ARMING, # Setting (Full)
-            b'\x00': "?",
             b'\t': "?",
             b'\n': "?",
             b'1': "?",  
+            b'2': "?",  
             b'8': "?",  
             b'z': "?",
             b'F': "?",      
             b'J': "?",  
             b'*': "?",
+            b'$': "?", # during arm away (beeps?)
             b'(': "?",
+            b'\x00': "?",
+            b'\x08': "?",
+            b'\x0c': "?",
+            b'\x0e': "?",
             b'\x14': "?",
+            b'\x16': "?",  
             b'\x17': "?",  
             b'\x19': "?",          
             b'\x1a': "?",  
-            b'\x1e': "?",                  
-            b'\xff': "Heartbeat?", # 25 second heatbeat
-            b'\xed': "Heartbeat?",
-            b'\xe7': "?",
-            b'\xe3': "?",
+            b'\x1e': "?",
+            b'\xa0': "?", # during disarm 
+            b'\xa1': "?", # during arm 
+            b'\xa3': "?",                  
+            b'\xa4': "?", # during disarm
             b'\xb7': "?",
             b'\xb4': "?",
             b'\xba': "?",
+            b'\xe3': "?",
+            b'\xe7': "?",
+            b'\xe8': "?", # during disarm
+            b'\xed': "Heartbeat?",
+            b'\xff': "Heartbeat?", # 25 second heatbeat
             b'\x80': "Key Press",
             b'\x81': "Key Press",
             b'\x82': "Key Press",
@@ -233,7 +244,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                     self._model = 'Jablotron JA-80 Series'
                     byte_two = int.from_bytes(packet[1:2], byteorder='big', signed=False)
                     
-                    if byte_two >= 1 and byte_two <= 8: # and byte_two != 2: # all 2nd packets I have seen are between 1 and 8, but 2 packets sometimes have trigger message 
+                    if byte_two == 1: # and byte_two <= 8: # and byte_two != 2: # all 2nd packets I have seen are between 1 and 8, but 2 packets sometimes have trigger message 
 
                         #_LOGGER.debug("packet is %s", packet[:8])
 
@@ -254,10 +265,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                                 old_state = state
                                 
                     elif byte_two == 62: # '>' symbol is received on startup
-                        _LOGGER.debug("Startup response packet is %s", packet[:8])
+                        _LOGGER.info("Startup response packet is: %s", packet[:8])
 
                     else:
-                        _LOGGER.warn("Unknown packet is %s", packet[:8])
+                        #_LOGGER.warn("Unknown packet is %s", packet[:8])
+                        pass
 
                 else:         
                     _LOGGER.error("The data stream is not recongisable as a JA-82 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
@@ -386,9 +398,9 @@ class JablotronAlarm(alarm.AlarmControlPanel):
                 try:
 
                     if self._desired_state == STATE_ALARM_DISARMED:
-                        timeout = 15
+                        timeout = 5
                     else:
-                        timeout = 45
+                        timeout = 35
 
                     self._wait_task = self.loop.create_task(self._updated.wait())
                     await asyncio.wait_for(self._wait_task, timeout)
