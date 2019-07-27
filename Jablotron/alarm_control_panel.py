@@ -176,11 +176,14 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'S': STATE_ALARM_ARMING, # Setting (Full)
             b'\t': "?",
             b'\n': "?",
+            b'\r': "?",
             b'1': "?",  
             b'2': "?",  
             b'5': "?",  
             b'7': "?",  
-            b'8': "?",  
+            b'8': "?",
+            b'b': "?",  
+            b'l': "?",
             b'z': "?",
             b'F': "?",      
             b'J': "?",  
@@ -189,7 +192,11 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'=': "?", # during alarm night
             b'$': "?", # during arm away (beeps?)
             b'(': "?",
+            b')': "?",
+            b'>': "?",
+            b"'": "?",
             b'\x00': "?",
+            b'\x07': "?",
             b'\x08': "?",
             b'\x0b': "?",
             b'\x0c': "?",
