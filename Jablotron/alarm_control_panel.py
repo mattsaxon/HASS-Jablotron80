@@ -196,6 +196,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'>': "?",
             b"'": "?",
             b'\x00': "?",
+            b'\x04': "?",
             b'\x07': "?",
             b'\x08': "?",
             b'\x0b': "?",
