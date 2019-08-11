@@ -66,9 +66,13 @@ There is a thread discussing this integration [here](https://community.home-assi
 
 ## What if my HA instance isn't near my alarm control panel?
 
-A number of users have had this issue and there is nso far one option confirmed as being able to create a workaround for this.
+A number of users have had this issue and there is so far one option confirmed as being able to create a workaround for this.
 
 1. [USB over IP](https://derushadigital.com/other%20projects/2019/02/19/RPi-USBIP-ZWave.html)
+
+Note: See also [issue 2](https://github.com/mattsaxon/HASS-Jablotron80/issues/8)
+
+Further work to use MQTT may be undertaken at somepoint, see [issue 6](https://github.com/mattsaxon/HASS-Jablotron80/issues/6) 
 
 ## Future
 
