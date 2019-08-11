@@ -64,6 +64,12 @@ logger:
 
 There is a thread discussing this integration [here](https://community.home-assistant.io/t/jablotron-ja-80-series-and-ja-100-series-alarm-integration/113315/3), however for issues, please raise the issue in this GitHub repo. 
 
+## What if my HA instance isn't near my alarm control panel?
+
+A number of users have had this issue and there is nso far one option confirmed as being able to create a workaround for this.
+
+1. [USB over IP](https://derushadigital.com/other%20projects/2019/02/19/RPi-USBIP-ZWave.html)
+
 ## Future
 
 I'm very happy to work with others to enhance this component and get others installation working.
