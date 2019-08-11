@@ -185,7 +185,8 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'b': "?",  
             b'l': "?",
             b'z': "?",
-            b'F': "?",      
+            b'F': "?",   
+            b'I': "?",      
             b'J': "?",  
             b'*': "?",
             b'%': "?", # during unset
@@ -202,6 +203,7 @@ class JablotronAlarm(alarm.AlarmControlPanel):
             b'\x0b': "?",
             b'\x0c': "?",
             b'\x0e': "?",
+            b'\x10': "?",
             b'\x11': "?",
             b'\x14': "?",
             b'\x16': "?",  
