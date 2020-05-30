@@ -1,0 +1,6 @@
+{
+        "domain": "jablotron",
+        "name": "Jablotron 80 Component",
+        "documentation": "https://github.com/mattsaxon/hass-jablotron80",
+        "codeowners": ["@mattsaxon"]
+}
