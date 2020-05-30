@@ -1,3 +1,5 @@
 {
-"name": "Jablotron80"
+"name": "Jablotron80",
+"domains": "alarm_control_panel",
+"iot_class": "local"
 }
