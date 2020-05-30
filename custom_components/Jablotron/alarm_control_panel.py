@@ -48,7 +48,7 @@ async def async_setup_platform(hass: HomeAssistantType, config: ConfigType,
 
     async_add_entities([JablotronAlarm(hass,config)])
 
-class JablotronAlarm(alarm.AlarmControlPanel):
+class JablotronAlarm(alarm.AlarmControlPanelEntity):
     """Representation of a Jabltron alarm status."""
 
     def __init__(self, hass, config):
