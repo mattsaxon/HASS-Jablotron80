@@ -282,7 +282,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         state = ja82codes.get(packet[2:3]) # the state is in the 3rd packet
 
                         if state is None:
-                            _LOGGER.warn("Unknown status packet is %s", packet[:8])
+                            _LOGGER.debug("Unknown status packet is %s", packet[:8])
                             pass
 
                         elif state != "Heartbeat?" and state !="Key Press" and state !="?" :
@@ -299,7 +299,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         _LOGGER.info("Startup response packet is: %s", packet[:8])
 
                     else:
-                        #_LOGGER.warn("Unknown packet is %s", packet[:8])
+                        #_LOGGER.debug("Unknown packet is %s", packet[:8])
                         pass
 
                 else:         
