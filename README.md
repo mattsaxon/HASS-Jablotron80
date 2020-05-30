@@ -7,7 +7,7 @@ For 100 series devices please see other repo here https://github.com/plaksnor/HA
 ** Model 80 tested with RPi using a JA-82T USB/Serial cable to a JA-82K control panel **
 
 ## Supported devices
-- Probably any Jablron Oasis 80 series control panel
+- Probably any Jablotron Oasis 80 series control panel
 - Whilst I would have expected this to work with other USB/serial cables, I haven't had confirmation of others that the JA-82T working yet. I'd be happy to work through issues with anyone having trouble.
 
 ## Installation
