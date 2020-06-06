@@ -182,9 +182,10 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
             b'B': STATE_ALARM_ARMED_NIGHT, # Set (Zone A & B)
             b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & C)
             b'D': STATE_ALARM_TRIGGERED, #  This was triggered via '24 hour' sensor, when unset
+            b'E': STATE_ALARM_TRIGGERED, # Triggered when zone A is armed 
             b'G': STATE_ALARM_TRIGGERED, # This was trigerred vis s standard sensor, when set
-            b'Q': STATE_ALARM_PENDING, # Setting (Zone A)
-            b'R': STATE_ALARM_PENDING, # Setting (Zones A & B)
+            b'Q': STATE_ALARM_ARMING, # Setting (Zone A)
+            b'R': STATE_ALARM_ARMING, # Setting (Zones A & B)
             b'S': STATE_ALARM_ARMING, # Setting (Full)
             b'\t': "?",
             b'\n': "?",
@@ -282,7 +283,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         state = ja82codes.get(packet[2:3]) # the state is in the 3rd packet
 
                         if state is None:
-                            _LOGGER.debug("Unknown status packet is %s", packet[:8])
+                            _LOGGER.debug("Unknown status packet is %s", packet[2:3])
                             pass
 
                         elif state != "Heartbeat?" and state !="Key Press" and state !="?" :
@@ -330,7 +331,8 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         send_code = ""
 
         if self._config[CONF_CODE_PANEL_DISARM_REQUIRED]:
-            if code == "":
+            # Use code from config if and onlfy is none is entered by user and setup as not required
+            if code is None and not self._config[CONF_CODE_DISARM_REQUIRED]:
                 code = self._code
             send_code = code
 
