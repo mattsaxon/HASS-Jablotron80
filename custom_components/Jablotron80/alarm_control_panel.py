@@ -85,6 +85,22 @@ JABLOTRON_STATE_CODES = {
     b'\x8f': "Key Press"
 }
 
+JABLOTRON_KEY_MAP = {
+    "0": b'\x80',
+    "1": b'\x81',
+    "2": b'\x82',
+    "3": b'\x83',
+    "4": b'\x84',
+    "5": b'\x85',
+    "6": b'\x86',
+    "7": b'\x87',
+    "8": b'\x88',
+    "9": b'\x89',
+    "#": b'\x8e',
+    "?": b'\x8e',
+    "*": b'\x8f'
+}
+
 async def async_setup_platform(hass: HomeAssistantType, config: ConfigType,
                                async_add_entities, discovery_info=None):
 
@@ -256,13 +272,14 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         elif state != "Heartbeat" and state !="Key Press" and state !="?" :
                             return state
 
-                    elif self.state == STATE_ALARM_TRIGGERED and byte_two == 7 :
+                    elif self.state == STATE_ALARM_TRIGGERED and byte_two == 7 and self._changed_by is None:
                         # Alarm is triggered, look into \x07F*\19 message to fetch the device which triggered the alarm
                         _LOGGER.debug("Sensor packet is %s", packet[1:8])
                         if packet[2:3] == b'F' and packet[4:5] == b'\x19':
                             sensor_id = int.from_bytes(packet[3:4], byteorder='big', signed=False)
                             _LOGGER.info("Alarm triggered by sensor %s", sensor_id)
                             self._changed_by = "Sensor %s" % sensor_id
+                            self._update()
 
                     elif byte_two == 62: # '>' symbol is received on startup
                         _LOGGER.info("Startup response packet is: %s", packet[1:8])
@@ -427,22 +444,6 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         """Send via serial port."""
 
         _LOGGER.debug("sending %s", payload)
-       
-        key_map = {
-            "0": b'\x80',
-            "1": b'\x81',
-            "2": b'\x82',
-            "3": b'\x83',
-            "4": b'\x84',
-            "5": b'\x85',
-            "6": b'\x86',
-            "7": b'\x87',
-            "8": b'\x88',
-            "9": b'\x89',
-            "#": b'\x8e',
-            "?": b'\x8e',
-            "*": b'\x8f'
-        }
 
         try:
             self._lock.acquire()
@@ -450,7 +451,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
             packet_no = 0
             for c in payload:
                 packet_no +=1
-                packet = b'\x00\x02\x01' + key_map.get(c)
+                packet = b'\x00\x02\x01' + JABLOTRON_KEY_MAP.get(c)
                 _LOGGER.debug('sending packet %i, message: %s', packet_no, packet)
                 self._send_packet(packet)
                 await asyncio.sleep(0.1) # lower reliability without this delay
