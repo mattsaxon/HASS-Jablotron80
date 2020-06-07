@@ -10,7 +10,7 @@ import homeassistant.components.alarm_control_panel as alarm
 from homeassistant.const import (
     CONF_CODE, CONF_DEVICE, CONF_NAME, CONF_VALUE_TEMPLATE,
     STATE_ALARM_ARMED_AWAY, STATE_ALARM_ARMED_HOME, STATE_ALARM_ARMED_NIGHT,
-    STATE_ALARM_DISARMED, STATE_ALARM_PENDING, STATE_ALARM_ARMING, STATE_ALARM_TRIGGERED)
+    STATE_ALARM_DISARMED, STATE_ALARM_PENDING, STATE_ALARM_ARMING, STATE_ALARM_DISARMING, STATE_ALARM_TRIGGERED)
 from homeassistant.components.alarm_control_panel.const import (
     SUPPORT_ALARM_ARM_AWAY,
     SUPPORT_ALARM_ARM_HOME,
@@ -42,6 +42,48 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
 })
 
+JABLOTRON_STATE_CODES = {
+    # Heartbeats
+    b'\xed': "Heartbeat",
+    b'\xff': "Heartbeat", # 25 seconds heartbeat
+    
+    b'@': STATE_ALARM_DISARMED,
+
+    b'A': STATE_ALARM_ARMED_HOME, # Set (Zone A)
+    b'B': STATE_ALARM_ARMED_NIGHT, # Set (Zone A & B)
+    b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & C)
+
+    b'Q': STATE_ALARM_ARMING, # Setting (Zone A)
+    b'R': STATE_ALARM_ARMING, # Setting (Zones A & B)
+    b'S': STATE_ALARM_ARMING, # Setting (Full)
+    b'\xa1': STATE_ALARM_ARMING, # during arm 
+    b'$': STATE_ALARM_ARMING, # during arm away (beeps?)
+
+    b'D': STATE_ALARM_TRIGGERED, #  This was triggered via '24 hour' sensor, when unset
+    b'E': STATE_ALARM_TRIGGERED, # Triggered when zone A is armed 
+    b'G': STATE_ALARM_TRIGGERED, # This was trigerred vis s standard sensor, when set
+    b'\xe8': STATE_ALARM_TRIGGERED, # during alarm
+    b'=': STATE_ALARM_TRIGGERED, # during alarm night
+
+    b'\xa4': STATE_ALARM_DISARMING, # during disarm
+    b'\xa0': STATE_ALARM_DISARMING, # during disarm 
+    b'\xb8': STATE_ALARM_DISARMING, # disarming during alarm
+
+    b'\x00': "?", # null
+
+    b'\x80': "Key Press",
+    b'\x81': "Key Press",
+    b'\x82': "Key Press",
+    b'\x83': "Key Press",
+    b'\x84': "Key Press",
+    b'\x85': "Key Press",
+    b'\x86': "Key Press",
+    b'\x87': "Key Press",
+    b'\x88': "Key Press",
+    b'\x89': "Key Press",
+    b'\x8e': "Key Press",
+    b'\x8f': "Key Press"
+}
 
 async def async_setup_platform(hass: HomeAssistantType, config: ConfigType,
                                async_add_entities, discovery_info=None):
@@ -55,6 +97,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         """Init the Alarm Control Panel."""
         self._state = None
         self._sub_state = None
+        self._changed_by = None
         self._name = config.get(CONF_NAME)
         self._file_path = config.get(CONF_SERIAL_PORT)
         self._available = False
@@ -119,6 +162,11 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         return self._state
 
     @property
+    def changed_by(self):
+        """Return the last source of state change."""
+        return self._changed_by
+
+    @property
     def available(self):
         return self._available
 
@@ -136,8 +184,6 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
     def supported_features(self) -> int:
         """Return the list of supported features."""
         return SUPPORT_ALARM_ARM_HOME | SUPPORT_ALARM_ARM_AWAY | SUPPORT_ALARM_TRIGGER | SUPPORT_ALARM_ARM_NIGHT
-
-        
         
     async def _update(self):
 
@@ -161,7 +207,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                     _LOGGER.info("Jablotron state change: %s to %s", self._state, new_state )
                     self._state = new_state
 
-                    asyncio.run_coroutine_threadsafe(self._update(), self._hass.loop)                   
+                    asyncio.run_coroutine_threadsafe(self._update(), self._hass.loop)
 
                 #self._lock.release()
 
@@ -176,86 +222,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
 
     def _read(self):
 
-        ja82codes = {
-            b'@': STATE_ALARM_DISARMED,
-            b'A': STATE_ALARM_ARMED_HOME, # Set (Zone A)
-            b'B': STATE_ALARM_ARMED_NIGHT, # Set (Zone A & B)
-            b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & C)
-            b'D': STATE_ALARM_TRIGGERED, #  This was triggered via '24 hour' sensor, when unset
-            b'E': STATE_ALARM_TRIGGERED, # Triggered when zone A is armed 
-            b'G': STATE_ALARM_TRIGGERED, # This was trigerred vis s standard sensor, when set
-            b'Q': STATE_ALARM_ARMING, # Setting (Zone A)
-            b'R': STATE_ALARM_ARMING, # Setting (Zones A & B)
-            b'S': STATE_ALARM_ARMING, # Setting (Full)
-            b'\t': "?",
-            b'\n': "?",
-            b'\r': "?",
-            b'1': "?",  
-            b'2': "?",  
-            b'5': "?",  
-            b'7': "?",  
-            b'8': "?",
-            b'b': "?",  
-            b'l': "?",
-            b'z': "?",
-            b'F': "?",   
-            b'I': "?",      
-            b'J': "?",  
-            b'*': "?",
-            b'%': "?", # during unset
-            b'=': "?", # during alarm night
-            b'$': "?", # during arm away (beeps?)
-            b'(': "?",
-            b')': "?",
-            b'>': "?",
-            b"'": "?",
-            b'\x00': "?",
-            b'\x02': "?",
-            b'\x04': "?",
-            b'\x06': "?",
-            b'\x07': "?",
-            b'\x08': "?",
-            b'\x0b': "?",
-            b'\x0c': "?",
-            b'\x0e': "?",
-            b'\x10': "?",
-            b'\x11': "?",
-            b'\x14': "?",
-            b'\x16': "?",  
-            b'\x17': "?",  
-            b'\x18': "?",  
-            b'\x19': "?",          
-            b'\x1a': "?",  
-            b'\x1e': "?",
-            b'\xa0': "?", # during disarm 
-            b'\xa1': "?", # during arm 
-            b'\xa3': "?",                  
-            b'\xa4': "?", # during disarm
-            b'\xb7': "?",
-            b'\xb4': "?",
-            b'\xba': "?",
-            b'\xe3': "?",
-            b'\xe7': "?",
-            b'\xe8': "?", # during disarm
-            b'\xed': "Heartbeat?",
-            b'\xff': "Heartbeat?", # 25 second heatbeat
-            b'\x80': "Key Press",
-            b'\x81': "Key Press",
-            b'\x82': "Key Press",
-            b'\x83': "Key Press",
-            b'\x84': "Key Press",
-            b'\x85': "Key Press",
-            b'\x86': "Key Press",
-            b'\x87': "Key Press",
-            b'\x88': "Key Press",
-            b'\x89': "Key Press",
-            b'\x8e': "Key Press",
-            b'\x8f': "Key Press"
-        }
-
         state = None
-        old_state = None        # maintain old state and new state
-        state_consistent_count = 0    # ensure state stays consistent for a number of times to week our spurious state changes
 
         try:
             while True:
@@ -280,33 +247,33 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
 
                         #_LOGGER.debug("packet is %s", packet[:8])
 
-                        state = ja82codes.get(packet[2:3]) # the state is in the 3rd packet
+                        # Map state from code in the 3rd byte if not heartbead
+                        state = JABLOTRON_STATE_CODES.get(packet[2:3])
 
                         if state is None:
                             _LOGGER.debug("Unknown status packet is %s", packet[2:3])
                             pass
+                        elif state != "Heartbeat" and state !="Key Press" and state !="?" :
+                            return state
 
-                        elif state != "Heartbeat?" and state !="Key Press" and state !="?" :
-                            # _LOGGER.debug("state: %s, packet %s", state, packet[:3])
-                            if state == old_state:
-                                state_consistent_count +=1
-                                if state_consistent_count >= 1:
-                                    return state
-                            else:
-                                state_consistent_count = 0
-                                old_state = state
-                                
+                    elif self.state == STATE_ALARM_TRIGGERED and byte_two == 7 :
+                        # Alarm is triggered, look into \x07F*\19 message to fetch the device which triggered the alarm
+                        _LOGGER.debug("Sensor packet is %s", packet[1:8])
+                        if packet[2:3] == b'F' and packet[4:5] == b'\x19':
+                            sensor_id = int.from_bytes(packet[3:4], byteorder='big', signed=False)
+                            _LOGGER.info("Alarm triggered by sensor %s", sensor_id)
+                            self._changed_by = "Sensor %s" % sensor_id
+
                     elif byte_two == 62: # '>' symbol is received on startup
-                        _LOGGER.info("Startup response packet is: %s", packet[:8])
+                        _LOGGER.info("Startup response packet is: %s", packet[1:8])
 
                     else:
-                        #_LOGGER.debug("Unknown packet is %s", packet[:8])
+                        #_LOGGER.debug("Unknown packet is %s", packet[1:8])
                         pass
 
                 else:         
                     _LOGGER.error("The data stream is not recongisable as a JA-82 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
                     self._stop.set()
-
 
         except (IndexError, FileNotFoundError, IsADirectoryError,
                 UnboundLocalError, OSError):
@@ -317,7 +284,6 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         except Exception as ex:
             _LOGGER.error('Unexpected error: %s', format(ex) )
             return 'Failed'
-
 
     async def async_alarm_disarm(self, code=None):
         """Send disarm command.

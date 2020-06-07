@@ -22,3 +22,5 @@ $RECYCLE.BIN/
 # Operating System Files
 # =========================
 *.bak
+
+logs/*
