@@ -61,15 +61,16 @@ JABLOTRON_STATE_CODES = {
 
     b'D': STATE_ALARM_TRIGGERED, #  This was triggered via '24 hour' sensor, when unset
     b'E': STATE_ALARM_TRIGGERED, # Triggered when zone A is armed 
+    b'K': STATE_ALARM_TRIGGERED, # Triggered via motion sensor, when armed away
     b'G': STATE_ALARM_TRIGGERED, # This was trigerred vis s standard sensor, when set
-    b'\xe8': STATE_ALARM_TRIGGERED, # during alarm
-    b'=': STATE_ALARM_TRIGGERED, # during alarm night
 
     b'\xa4': STATE_ALARM_DISARMING, # during disarm
     b'\xa0': STATE_ALARM_DISARMING, # during disarm 
     b'\xb8': STATE_ALARM_DISARMING, # disarming during alarm
 
     b'\x00': "?", # null
+    b'\xe8': "?", # during alarm
+    b'=': "?", # during alarm night
 
     b'\x80': "Key Press",
     b'\x81': "Key Press",
@@ -267,25 +268,31 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         state = JABLOTRON_STATE_CODES.get(packet[2:3])
 
                         if state is None:
-                            _LOGGER.debug("Unknown status packet is %s", packet[2:3])
+                            _LOGGER.debug("Unknown status packet is %s", packet[2:8])
                             pass
                         elif state != "Heartbeat" and state !="Key Press" and state !="?" :
+                            if state != self._state:
+                                _LOGGER.debug("Recognized state change to %s from packet %s", state, packet[2:3])
+                            # Reset _changed_by to none when triggered
+                            if state == STATE_ALARM_TRIGGERED:
+                                self._changed_by = None
                             return state
 
-                    elif self.state == STATE_ALARM_TRIGGERED and byte_two == 7 and self._changed_by is None:
+                    elif byte_two == 7 and self._state == STATE_ALARM_TRIGGERED and self._changed_by is None:
                         # Alarm is triggered, look into \x07F*\19 message to fetch the device which triggered the alarm
-                        _LOGGER.debug("Sensor packet is %s", packet[1:8])
+                        # This works only when ARMED_HOME
                         if packet[2:3] == b'F' and packet[4:5] == b'\x19':
                             sensor_id = int.from_bytes(packet[3:4], byteorder='big', signed=False)
                             _LOGGER.info("Alarm triggered by sensor %s", sensor_id)
                             self._changed_by = "Sensor %s" % sensor_id
-                            self._update()
+                            self.schedule_update_ha_state() # push attribute update to HA
 
                     elif byte_two == 62: # '>' symbol is received on startup
                         _LOGGER.info("Startup response packet is: %s", packet[1:8])
 
                     else:
-                        #_LOGGER.debug("Unknown packet is %s", packet[1:8])
+                        if self._state == STATE_ALARM_TRIGGERED:
+                            _LOGGER.debug("Unknown packet is %s", packet[1:8])
                         pass
 
                 else:         
@@ -384,6 +391,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
 
         self._payload = payload
         self._desired_state = desired_state
+        self._changed_by = "hass"
 
         self._desired_state_updated.set()
 
