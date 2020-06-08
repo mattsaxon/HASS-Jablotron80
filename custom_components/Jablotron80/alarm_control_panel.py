@@ -178,7 +178,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
 
                 if new_state != self._state:
                     _LOGGER.info("Jablotron state change: %s to %s", self._state, new_state )
-                    self._state = new_state    
+                    self._state = new_state
                     asyncio.run_coroutine_threadsafe(self._update(), self._hass.loop)
                         
                 #self._lock.release()
@@ -258,29 +258,31 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         elif state is not None:
                             if state != self._state:
                                 _LOGGER.debug("Recognized state change to %s from packet %s", state, state_byte)
-
-                            # Reset _changed_by to none when triggered
-                            if state == STATE_ALARM_TRIGGERED:
-                                self._changed_by = None
+                                # Reset _changed_by to none when triggered
+                                if state == STATE_ALARM_TRIGGERED:
+                                    self._changed_by = "?"
                             return state
                         else:
                             _LOGGER.debug("Unknown status packet is %s", packet[2:8])
 
-                    elif byte_two == 7 and self._state == STATE_ALARM_TRIGGERED and self._changed_by is None:
-                        # Alarm is triggered, look into \x07F*\19 message to fetch the device which triggered the alarm
-                        # This works only when ARMED_HOME
-                        if packet[2:3] == b'F' and packet[4:5] == b'\x19':
-                            sensor_id = int.from_bytes(packet[3:4], byteorder='big', signed=False)
+                    elif byte_two == 62: # '>' symbol is received on startup
+                        _LOGGER.info("Startup response packet is: %s", packet[1:8])
+
+                    elif byte_two == 7 and self._state == STATE_ALARM_TRIGGERED:
+                        # Alarm is triggered, look into \x07?F*\x1?< message to fetch the device which triggered the alarm
+                        if (
+                                (packet[2:4] == b'GF' and packet[5:7] == b'\x1f<')  or #when away
+                                (packet[2:4] == b'EF' and packet[5:7] == b'\x19<') # when home
+                            ): 
+                            _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
+                            sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
                             _LOGGER.info("Alarm triggered by sensor %s", sensor_id)
                             self._changed_by = "Sensor %s" % sensor_id
                             self.schedule_update_ha_state() # push attribute update to HA
 
-                    elif byte_two == 62: # '>' symbol is received on startup
-                        _LOGGER.info("Startup response packet is: %s", packet[1:8])
-
                     else:
-                        if self._state == STATE_ALARM_TRIGGERED:
-                            _LOGGER.debug("Unknown packet is %s", packet[1:8])
+                        #if self._state == STATE_ALARM_TRIGGERED:
+                        #    _LOGGER.debug("Unknown packet is %s", packet[1:8])
                         pass
 
                 else:         
