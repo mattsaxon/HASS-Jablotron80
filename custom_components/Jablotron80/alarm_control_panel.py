@@ -42,50 +42,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
 })
 
-JABLOTRON_STATE_CODES = {
-    # Heartbeats
-    b'\xed': "Heartbeat",
-    b'\xff': "Heartbeat", # 25 seconds heartbeat
-    
-    b'@': STATE_ALARM_DISARMED,
-
-    b'A': STATE_ALARM_ARMED_HOME, # Set (Zone A)
-    b'B': STATE_ALARM_ARMED_NIGHT, # Set (Zone A & B)
-    b'C': STATE_ALARM_ARMED_AWAY, # Set (Zone A, B & C)
-
-    b'Q': STATE_ALARM_ARMING, # Setting (Zone A)
-    b'R': STATE_ALARM_ARMING, # Setting (Zones A & B)
-    b'S': STATE_ALARM_ARMING, # Setting (Full)
-    b'\xa1': STATE_ALARM_ARMING, # during arm 
-    b'$': STATE_ALARM_ARMING, # during arm away (beeps?)
-
-    b'D': STATE_ALARM_TRIGGERED, #  This was triggered via '24 hour' sensor, when unset
-    b'E': STATE_ALARM_TRIGGERED, # Triggered when zone A is armed 
-    b'K': STATE_ALARM_TRIGGERED, # Triggered via motion sensor, when armed away
-    b'G': STATE_ALARM_TRIGGERED, # This was trigerred vis s standard sensor, when set
-
-    b'\xa4': STATE_ALARM_DISARMING, # during disarm
-    b'\xa0': STATE_ALARM_DISARMING, # during disarm 
-    b'\xb8': STATE_ALARM_DISARMING, # disarming during alarm
-
-    b'\x00': "?", # null
-    b'\xe8': "?", # during alarm
-    b'=': "?", # during alarm night
-
-    b'\x80': "Key Press",
-    b'\x81': "Key Press",
-    b'\x82': "Key Press",
-    b'\x83': "Key Press",
-    b'\x84': "Key Press",
-    b'\x85': "Key Press",
-    b'\x86': "Key Press",
-    b'\x87': "Key Press",
-    b'\x88': "Key Press",
-    b'\x89': "Key Press",
-    b'\x8e': "Key Press",
-    b'\x8f': "Key Press"
-}
-
 JABLOTRON_KEY_MAP = {
     "0": b'\x80',
     "1": b'\x81',
@@ -222,10 +178,9 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
 
                 if new_state != self._state:
                     _LOGGER.info("Jablotron state change: %s to %s", self._state, new_state )
-                    self._state = new_state
-
+                    self._state = new_state    
                     asyncio.run_coroutine_threadsafe(self._update(), self._hass.loop)
-
+                        
                 #self._lock.release()
 
                 time.sleep(1) # read state once every second, no need for more!
@@ -260,23 +215,56 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                     self._model = 'Jablotron JA-80 Series'
                     byte_two = int.from_bytes(packet[1:2], byteorder='big', signed=False)
                     
-                    if byte_two == 1: # and byte_two <= 8: # and byte_two != 2: # all 2nd packets I have seen are between 1 and 8, but 2 packets sometimes have trigger message 
+                    # Status packet
+                    if byte_two == 1: 
+                        # and byte_two <= 8: # and byte_two != 2: # all 2nd packets I have seen are between 1 and 8, but 2 packets sometimes have trigger message 
 
                         #_LOGGER.debug("packet is %s", packet[:8])
+                        state_byte = packet[2:3]
 
-                        # Map state from code in the 3rd byte if not heartbead
-                        state = JABLOTRON_STATE_CODES.get(packet[2:3])
+                        # heartbeats or null
+                        if state_byte in (b'\xed', b'\xff', b'\x00'):
+                            state = "ignore" # no change 
+                        # Stable states
+                        elif state_byte == b'@': 
+                            state = STATE_ALARM_DISARMED
+                        elif state_byte in (b'Q', b'R', b'S'):
+                            state = STATE_ALARM_ARMING # Zone A; A&B; A&B&C
+                        elif state_byte == b'A':
+                            state = STATE_ALARM_ARMED_HOME
+                        elif state_byte == b'B':
+                            state = STATE_ALARM_ARMED_NIGHT
+                        elif state_byte == b'C':
+                            state = STATE_ALARM_ARMED_AWAY
+                        elif state_byte == b'D' :
+                            state = STATE_ALARM_TRIGGERED # via '24 hour' sensor when unset
+                        elif state_byte in (b'E', b'G') :
+                            state = STATE_ALARM_TRIGGERED # when zone A is set, via standard sensor when set
+                        # Temporary states
+                        elif state_byte == b'K' and self._state == STATE_ALARM_ARMED_AWAY:
+                            state = STATE_ALARM_PENDING
+                        elif state_byte in (b'\xa1', b'$') and self._state == STATE_ALARM_ARMING:
+                            state = STATE_ALARM_ARMING # during arm & arm away (beeps?)
+                        elif state_byte in (b'\xe8', b'=') and self._state == STATE_ALARM_TRIGGERED:
+                            state = STATE_ALARM_TRIGGERED # during alarm & alarm night
+                        elif state_byte in (b'\xa4', b'\xa0', b'\xb8') and self._state != STATE_ALARM_DISARMED:
+                            state = STATE_ALARM_DISARMING
+                        # Keypress 
+                        if state_byte in (b'\x80', b'\x81', b'\x82', b'\x83', b'\x84', b'\x85', b'\x86', b'\x87', b'\x88', b'\x89', b'\x8e', b'\x8f'):
+                            state = "ignore" # no change
 
-                        if state is None:
-                            _LOGGER.debug("Unknown status packet is %s", packet[2:8])
+                        if state == "ignore":
                             pass
-                        elif state != "Heartbeat" and state !="Key Press" and state !="?" :
+                        elif state is not None:
                             if state != self._state:
-                                _LOGGER.debug("Recognized state change to %s from packet %s", state, packet[2:3])
+                                _LOGGER.debug("Recognized state change to %s from packet %s", state, state_byte)
+
                             # Reset _changed_by to none when triggered
                             if state == STATE_ALARM_TRIGGERED:
                                 self._changed_by = None
                             return state
+                        else:
+                            _LOGGER.debug("Unknown status packet is %s", packet[2:8])
 
                     elif byte_two == 7 and self._state == STATE_ALARM_TRIGGERED and self._changed_by is None:
                         # Alarm is triggered, look into \x07F*\19 message to fetch the device which triggered the alarm
@@ -416,15 +404,15 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
 
                 self._updated.clear()
 
-                if not retrying or (self.state != STATE_ALARM_ARMING and self.state != STATE_ALARM_PENDING) :
+                if not retrying or (self.state != STATE_ALARM_ARMING and self.state != STATE_ALARM_DISARMING and self.state != STATE_ALARM_PENDING) :
                     await self._send_keys(self._payload)
 
                 try:
 
                     if self._desired_state == STATE_ALARM_DISARMED:
-                        timeout = 5
+                        timeout = 10
                     else:
-                        timeout = 35
+                        timeout = 40
 
                     self._wait_task = self.loop.create_task(self._updated.wait())
                     await asyncio.wait_for(self._wait_task, timeout)
