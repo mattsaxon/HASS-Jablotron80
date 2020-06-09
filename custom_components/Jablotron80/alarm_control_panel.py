@@ -295,7 +295,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                     elif byte_two == 62: # '>' symbol is received on startup
                         _LOGGER.info("Startup response packet is: %s", packet[1:8])
 
-                    elif byte_two == 7 and self._state == STATE_ALARM_TRIGGERED:
+                    elif byte_two == 7 and self._state == STATE_ALARM_TRIGGERED and self._triggered_by == "?":
                         # Alarm is triggered, look into \x07?F*\x1?< message to fetch the device which triggered the alarm
                         if (
                                 (packet[2:4] == b'GF' and packet[5:7] == b'\x1f<')  or #when away
