@@ -22,6 +22,7 @@ alarm_control_panel:
     code_panel_disarm_required: [True if you need a code to be sent to physical panel on disarming, Default True]
     code_arm_required: [True if you want a code to need to be entered in HA UI prior to arming, Default False]
     code_disarm_required: [True if you want a code to need to be entered in HA UI prior to disarming, Default True]
+    sensor_names: [Optional mapping from sensor ID to name in JSON format for more user friendly triggered information]
 ```
 
 Example:
@@ -34,6 +35,7 @@ alarm_control_panel:
     code_panel_disarm_required: True
     code_arm_required: False
     code_disarm_required: False
+    sensor_names: '{"1":"Front door", "4":"Garden door", "6":"Playroom"}'
 ```
 
 Note 1: Because my serial cable presents as a HID device the format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar. Use the following command line to identity the appropriate device

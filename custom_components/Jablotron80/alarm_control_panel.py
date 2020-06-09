@@ -5,6 +5,7 @@ import time
 import voluptuous as vol
 import asyncio
 import threading
+import json
 
 import homeassistant.components.alarm_control_panel as alarm
 from homeassistant.const import (
@@ -28,6 +29,7 @@ CONF_CODE_PANEL_ARM_REQUIRED = 'code_panel_arm_required'
 CONF_CODE_PANEL_DISARM_REQUIRED = 'code_panel_disarm_required'
 CONF_CODE_ARM_REQUIRED = 'code_arm_required'
 CONF_CODE_DISARM_REQUIRED = 'code_disarm_required'
+CONF_CODE_SENSOR_NAMES = 'sensor_names'
 
 DEFAULT_NAME = 'Jablotron Alarm'
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
@@ -37,7 +39,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_CODE_DISARM_REQUIRED, default=True): cv.boolean,
     vol.Optional(CONF_CODE_PANEL_ARM_REQUIRED, default=False): cv.boolean,
     vol.Optional(CONF_CODE_PANEL_DISARM_REQUIRED, default=True): cv.boolean,
-    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
+    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+    vol.Optional(CONF_CODE_SENSOR_NAMES): cv.string
 })
 
 ATTR_CHANGED_BY = "changed_by"
@@ -301,7 +304,11 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                             _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                             sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
                             _LOGGER.info("Alarm triggered by sensor %s", sensor_id)
-                            self._triggered_by = "Sensor %s" % sensor_id
+                            if self._config[CONF_CODE_SENSOR_NAMES] is not None:
+                                sensor_names_dict=json.loads(self._config[CONF_CODE_SENSOR_NAMES])
+                                self._triggered_by = "%s: %s" % (sensor_id, sensor_names_dict.get(str(sensor_id), '?'))
+                            else:
+                                self._triggered_by = "Sensor %s" % sensor_id
                             self.schedule_update_ha_state() # push attribute update to HA
 
                     else:
