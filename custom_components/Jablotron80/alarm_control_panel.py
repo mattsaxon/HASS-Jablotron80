@@ -157,6 +157,11 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         code = self._code
         if code is None:
             return None
+
+        # Return None if no code needed in HA
+        if not self._config[CONF_CODE_ARM_REQUIRED] and not self._config[CONF_CODE_DISARM_REQUIRED]:
+            return None
+
         if isinstance(code, str) and re.search('^\\d+$', code):
             return alarm.FORMAT_NUMBER
         return alarm.FORMAT_TEXT
@@ -304,7 +309,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         #    _LOGGER.debug("Unknown packet is %s", packet[1:8])
                         pass
 
-                else:         
+                else:
                     _LOGGER.error("The data stream is not recongisable as a JA-82 control panel. Please raise an issue at https://github.com/mattsaxon/HASS-Jablotron80/issues with this packet info [%s]", packet)
                     self._stop.set()
 
