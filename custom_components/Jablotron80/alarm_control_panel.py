@@ -10,12 +10,11 @@ import homeassistant.components.alarm_control_panel as alarm
 from homeassistant.const import (
     CONF_CODE, CONF_DEVICE, CONF_NAME, CONF_VALUE_TEMPLATE,
     STATE_ALARM_ARMED_AWAY, STATE_ALARM_ARMED_HOME, STATE_ALARM_ARMED_NIGHT,
-    STATE_ALARM_DISARMED, STATE_ALARM_PENDING, STATE_ALARM_ARMING, STATE_ALARM_DISARMING, STATE_ALARM_TRIGGERED)
+    STATE_ALARM_DISARMED, STATE_ALARM_PENDING, STATE_ALARM_ARMING, STATE_ALARM_DISARMING, STATE_ALARM_TRIGGERED,
+    ATTR_CODE_FORMAT)
 from homeassistant.components.alarm_control_panel.const import (
-    SUPPORT_ALARM_ARM_AWAY,
-    SUPPORT_ALARM_ARM_HOME,
-    SUPPORT_ALARM_TRIGGER,
-    SUPPORT_ALARM_ARM_NIGHT)
+    SUPPORT_ALARM_ARM_AWAY, SUPPORT_ALARM_ARM_HOME, SUPPORT_ALARM_TRIGGER, SUPPORT_ALARM_ARM_NIGHT
+    )
 from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -25,7 +24,6 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 _LOGGER = logging.getLogger(__name__)
 
 CONF_SERIAL_PORT = 'serial_port'
-
 CONF_CODE_PANEL_ARM_REQUIRED = 'code_panel_arm_required'
 CONF_CODE_PANEL_DISARM_REQUIRED = 'code_panel_disarm_required'
 CONF_CODE_ARM_REQUIRED = 'code_arm_required'
@@ -41,6 +39,10 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_CODE_PANEL_DISARM_REQUIRED, default=True): cv.boolean,
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
 })
+
+ATTR_CHANGED_BY = "changed_by"
+ATTR_CODE_ARM_REQUIRED = "code_arm_required"
+ATTR_TRIGGERD_BY = "triggered_by"
 
 JABLOTRON_KEY_MAP = {
     "0": b'\x80',
@@ -71,6 +73,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         self._state = None
         self._sub_state = None
         self._changed_by = None
+        self._triggered_by = None
         self._name = config.get(CONF_NAME)
         self._file_path = config.get(CONF_SERIAL_PORT)
         self._available = False
@@ -138,6 +141,11 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
     def changed_by(self):
         """Return the last source of state change."""
         return self._changed_by
+        
+    @property
+    def triggered_by(self):
+        """Return the sensor which triggered the alarm"""
+        return self._triggered_by
 
     @property
     def available(self):
@@ -157,7 +165,18 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
     def supported_features(self) -> int:
         """Return the list of supported features."""
         return SUPPORT_ALARM_ARM_HOME | SUPPORT_ALARM_ARM_AWAY | SUPPORT_ALARM_TRIGGER | SUPPORT_ALARM_ARM_NIGHT
-        
+    
+    @property
+    def state_attributes(self):
+        """Return the state attributes."""
+        state_attr = {
+            ATTR_CODE_FORMAT: self.code_format,
+            ATTR_CHANGED_BY: self.changed_by,
+            ATTR_CODE_ARM_REQUIRED: self.code_arm_required,
+            ATTR_TRIGGERD_BY: self.triggered_by,
+        }
+        return state_attr
+
     async def _update(self):
 
         #_LOGGER.debug('_update called, state: %s', self._state )
@@ -245,9 +264,9 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                             state = STATE_ALARM_PENDING
                         elif state_byte in (b'\xa1', b'$') and self._state == STATE_ALARM_ARMING:
                             state = STATE_ALARM_ARMING # during arm & arm away (beeps?)
-                        elif state_byte in (b'\xe8', b'=') and self._state == STATE_ALARM_TRIGGERED:
+                        elif state_byte in (b'\x02', b'\xe8', b'=') and self._state == STATE_ALARM_TRIGGERED:
                             state = STATE_ALARM_TRIGGERED # during alarm & alarm night
-                        elif state_byte in (b'\xa4', b'\xa0', b'\xb8') and self._state != STATE_ALARM_DISARMED:
+                        elif state_byte in (b'\xa4', b'\xa0', b'\xb8') and self._state == STATE_ALARM_DISARMING:
                             state = STATE_ALARM_DISARMING
                         # Keypress 
                         if state_byte in (b'\x80', b'\x81', b'\x82', b'\x83', b'\x84', b'\x85', b'\x86', b'\x87', b'\x88', b'\x89', b'\x8e', b'\x8f'):
@@ -258,12 +277,12 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         elif state is not None:
                             if state != self._state:
                                 _LOGGER.debug("Recognized state change to %s from packet %s", state, state_byte)
-                                # Reset _changed_by to none when triggered
+                                # Reset _triggered_by to none when triggered
                                 if state == STATE_ALARM_TRIGGERED:
-                                    self._changed_by = "?"
+                                    self._triggered_by = "?"
                             return state
                         else:
-                            _LOGGER.debug("Unknown status packet is %s", packet[2:8])
+                            _LOGGER.warn("Unknown status packet is %s", packet[2:8])
 
                     elif byte_two == 62: # '>' symbol is received on startup
                         _LOGGER.info("Startup response packet is: %s", packet[1:8])
@@ -277,7 +296,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                             _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                             sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
                             _LOGGER.info("Alarm triggered by sensor %s", sensor_id)
-                            self._changed_by = "Sensor %s" % sensor_id
+                            self._triggered_by = "Sensor %s" % sensor_id
                             self.schedule_update_ha_state() # push attribute update to HA
 
                     else:
