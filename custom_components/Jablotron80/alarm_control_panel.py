@@ -91,11 +91,15 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         self._desired_state_updated = asyncio.Event()
         self._wait_task = None
 
-        try:         
+        try:
+            self._sensor_names = {}
+            if self._config[CONF_CODE_SENSOR_NAMES] is not None:
+                self._sensor_names = json.loads(self._config[CONF_CODE_SENSOR_NAMES])
+
             hass.bus.async_listen('homeassistant_stop', self.shutdown_threads)
 
             from concurrent.futures import ThreadPoolExecutor
-            self._io_pool_exc = ThreadPoolExecutor(max_workers=5)    
+            self._io_pool_exc = ThreadPoolExecutor(max_workers=5)
             #self._io_pool_exc.submit(self._startup_message)
 
             self._startup_message()
@@ -255,6 +259,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         # Stable states
                         elif state_byte == b'@': 
                             state = STATE_ALARM_DISARMED
+                            self._triggered_by = None # clear triggered_by
                         elif state_byte in (b'Q', b'R', b'S'):
                             state = STATE_ALARM_ARMING # Zone A; A&B; A&B&C
                         elif state_byte == b'A':
@@ -285,9 +290,6 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         elif state is not None:
                             if state != self._state:
                                 _LOGGER.debug("Recognized state change to %s from packet %s", state, state_byte)
-                                # Reset _triggered_by to none when triggered
-                                if state == STATE_ALARM_TRIGGERED:
-                                    self._triggered_by = "?"
                             return state
                         else:
                             _LOGGER.warn("Unknown status packet is %s", packet[2:8])
@@ -295,21 +297,19 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                     elif byte_two == 62: # '>' symbol is received on startup
                         _LOGGER.info("Startup response packet is: %s", packet[1:8])
 
-                    elif byte_two == 7 and self._state == STATE_ALARM_TRIGGERED and self._triggered_by == "?":
-                        # Alarm is triggered, look into \x07?F*\x1?< message to fetch the device which triggered the alarm
+                    elif byte_two == 7 and packet[2:4] in (b'GF', b'EF') and self._triggered_by is None:
+                        # Packets x07?F*\x1* contains the id of the device which triggered the alarm
                         if (
                                 (packet[2:4] == b'GF' and packet[5:7] == b'\x1f<')  or #when away
                                 (packet[2:4] == b'EF' and packet[5:7] == b'\x19<') # when home
                             ): 
                             _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                             sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
-                            _LOGGER.info("Alarm triggered by sensor %s", sensor_id)
-                            if self._config[CONF_CODE_SENSOR_NAMES] is not None:
-                                sensor_names_dict=json.loads(self._config[CONF_CODE_SENSOR_NAMES])
-                                self._triggered_by = "%s: %s" % (sensor_id, sensor_names_dict.get(str(sensor_id), '?'))
-                            else:
-                                self._triggered_by = "Sensor %s" % sensor_id
-                            self.schedule_update_ha_state() # push attribute update to HA
+                            triggered_sensor = "%s: %s" % (sensor_id, self._sensor_names.get(str(sensor_id), '?'))
+                            if self._triggered_by != triggered_sensor:
+                                _LOGGER.info("Alarm triggered by sensor %s", triggered_sensor)
+                                self._triggered_by = triggered_sensor
+                                self.schedule_update_ha_state() # push attribute update to HA
 
                     else:
                         #if self._state == STATE_ALARM_TRIGGERED:
