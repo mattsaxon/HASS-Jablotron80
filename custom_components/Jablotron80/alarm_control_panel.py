@@ -290,7 +290,10 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         elif state is not None:
                             if state != self._state:
                                 _LOGGER.debug("Recognized state change to %s from packet %s", state, state_byte)
-                            return state
+                            if state == STATE_ALARM_TRIGGERED and self._triggered_by is None:
+                                pass # wait for _triggered_by to be set before returning triggered state
+                            else:
+                                return state
                         else:
                             _LOGGER.warn("Unknown status packet is %s", packet[2:8])
 
@@ -309,7 +312,10 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                             if self._triggered_by != triggered_sensor:
                                 _LOGGER.info("Alarm triggered by sensor %s", triggered_sensor)
                                 self._triggered_by = triggered_sensor
-                                self.schedule_update_ha_state() # push attribute update to HA
+                                if self._state != STATE_ALARM_TRIGGERED:
+                                    return STATE_ALARM_TRIGGERED
+                                else:
+                                    self.schedule_update_ha_state() # push attribute update to HA
 
                     else:
                         #if self._state == STATE_ALARM_TRIGGERED:
