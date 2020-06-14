@@ -40,7 +40,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_CODE_PANEL_ARM_REQUIRED, default=False): cv.boolean,
     vol.Optional(CONF_CODE_PANEL_DISARM_REQUIRED, default=True): cv.boolean,
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-    vol.Optional(CONF_CODE_SENSOR_NAMES): cv.string
+    vol.Optional(CONF_CODE_SENSOR_NAMES, default={}): {int: cv.string},
 })
 
 ATTR_CHANGED_BY = "changed_by"
@@ -92,10 +92,6 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         self._wait_task = None
 
         try:
-            self._sensor_names = {}
-            if self._config[CONF_CODE_SENSOR_NAMES] is not None:
-                self._sensor_names = json.loads(self._config[CONF_CODE_SENSOR_NAMES])
-
             hass.bus.async_listen('homeassistant_stop', self.shutdown_threads)
 
             from concurrent.futures import ThreadPoolExecutor
@@ -308,7 +304,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                             ): 
                             _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                             sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
-                            triggered_sensor = "%s: %s" % (sensor_id, self._sensor_names.get(str(sensor_id), '?'))
+                            triggered_sensor = "%s: %s" % (sensor_id, self._config[CONF_CODE_SENSOR_NAMES].get(sensor_id, '?'))
                             if self._triggered_by != triggered_sensor:
                                 _LOGGER.info("Alarm triggered by sensor %s", triggered_sensor)
                                 self._triggered_by = triggered_sensor
