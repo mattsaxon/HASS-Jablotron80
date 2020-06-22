@@ -291,7 +291,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                             else:
                                 return state
                         else:
-                            _LOGGER.warn("Unknown status packet is %s", packet[2:8])
+                            _LOGGER.debug("Unknown status packet is %s", packet[2:8])
 
                     elif byte_two == 62: # '>' symbol is received on startup
                         _LOGGER.info("Startup response packet is: %s", packet[1:8])
