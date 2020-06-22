@@ -256,7 +256,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         elif state_byte == b'@': 
                             state = STATE_ALARM_DISARMED
                             self._triggered_by = None # clear triggered_by
-                        elif state_byte in (b'Q', b'R', b'S'):
+                        elif state_byte in (b'Q', b'R', b'S') and state == STATE_ALARM_DISARMED:
                             state = STATE_ALARM_ARMING # Zone A; A&B; A&B&C
                         elif state_byte == b'A':
                             state = STATE_ALARM_ARMED_HOME
