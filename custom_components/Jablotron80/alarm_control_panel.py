@@ -335,8 +335,8 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         return STATE_ALARM_TRIGGERED
 
                     else:
-                        if self._state == STATE_ALARM_TRIGGERED:
-                            _LOGGER.debug("Unknown packet when triggered %s", packet[1:8])
+                        # FOR REVERSE ENGINEERING ONLY: will produce A LOT of logs
+                        #_LOGGER.debug("Unknown packet when triggered %s", packet[1:8])
                         pass
 
                 else:
