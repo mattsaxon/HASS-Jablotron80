@@ -22,6 +22,7 @@ alarm_control_panel:
     code_panel_disarm_required: [True if you need a code to be sent to physical panel on disarming, Default True]
     code_arm_required: [True if you want a code to need to be entered in HA UI prior to arming, Default False]
     code_disarm_required: [True if you want a code to need to be entered in HA UI prior to disarming, Default True]
+    sensor_names: [Optional mapping from sensor ID to name for more user friendly triggered information]
 ```
 
 Example:
@@ -34,6 +35,10 @@ alarm_control_panel:
     code_panel_disarm_required: True
     code_arm_required: False
     code_disarm_required: False
+    sensor_names: 
+      1: "Front door"
+      2: "Garden door"
+      3: "Bedroom"
 ```
 
 Note 1: Because my serial cable presents as a HID device the format is /dev/hidraw[x], others that present as serial may be at /dev/ttyUSB0 or similar. Use the following command line to identity the appropriate device
@@ -43,8 +48,22 @@ $ dmesg | grep usb
 $ dmesg | grep hid
 ```
 
-
 Note 2: if you supply a code, this is used as the default code to arm/disarm it
+
+## Usage in automation
+With the following automation setup, you'll get a notification when alarm is triggerd with the id and name (if you configured sensor_names) of the sensor that triggered it.
+
+```
+  trigger:
+  - entity_id: alarm_control_panel.jablotron_alarm
+    platform: state
+    to: triggered
+  condition: []
+  action:
+  - data_template:
+      message: ALARM! {{ trigger.to_state.attributes.triggered_by }}
+    service: notify.notify
+```
 
 ## Debug
 
