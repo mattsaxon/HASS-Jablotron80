@@ -1,4 +1,4 @@
-"""This platform enables the possibility to control a MQTT alarm."""
+"""This platform enables the possibility to control a Jablotron alarm."""
 import logging
 import re
 import time
@@ -6,6 +6,7 @@ import voluptuous as vol
 import asyncio
 import threading
 import json
+from datetime import timedelta, datetime
 
 import homeassistant.components.alarm_control_panel as alarm
 from homeassistant.const import (
@@ -197,20 +198,37 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
         try:
             self._f = open(self._file_path, 'rb', 64)
 
+            lastTriggerTime = None
+
             while not self._stop.is_set():
+
+                time.sleep(1) # read state once every second, no need for more!
 
                 #self._lock.acquire()
 
                 new_state = self._read()
 
                 if new_state != self._state:
-                    _LOGGER.info("Jablotron state change: %s to %s", self._state, new_state )
+                    _LOGGER.info("Jablotron state change detected: %s to %s", self._state, new_state)
+                    if new_state == STATE_ALARM_TRIGGERED and self._triggered_by is None:
+                        _LOGGER.debug("Alarm triggered but source not known yet")
+
+                        # wait for _triggered_by to be set before returning triggered state, but not more that 10 seconds
+                        if lastTriggerTime is not None and (datetime.now() - lastTriggerTime).seconds < 10: 
+                            continue 
+                        elif lastTriggerTime is None:
+                            lastTriggerTime = datetime.now()
+                            continue
+
+                    elif new_state == STATE_ALARM_DISARMED:
+                        lastTriggerTime = None # clear last trigger time
+                        self._triggered_by = None # clear triggered_by
+                    
+                    # Update state & notify home assistant
                     self._state = new_state
                     asyncio.run_coroutine_threadsafe(self._update(), self._hass.loop)
                         
                 #self._lock.release()
-
-                time.sleep(1) # read state once every second, no need for more!
 
         except Exception as ex:
             _LOGGER.error('Unexpected error: %s', format(ex) )
@@ -242,21 +260,23 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                     self._model = 'Jablotron JA-80 Series'
                     byte_two = int.from_bytes(packet[1:2], byteorder='big', signed=False)
                     
+                    # Startup packet
+                    if byte_two == 62: # '>' symbol is received on startup
+                        _LOGGER.info("Startup response packet is: %s", packet[1:8])
+
                     # Status packet
-                    if byte_two == 1: 
+                    elif byte_two == 1: 
                         # and byte_two <= 8: # and byte_two != 2: # all 2nd packets I have seen are between 1 and 8, but 2 packets sometimes have trigger message 
 
-                        #_LOGGER.debug("packet is %s", packet[:8])
                         state_byte = packet[2:3]
-
+                    
                         # heartbeats or null
                         if state_byte in (b'\xed', b'\xff', b'\x00'):
                             state = "ignore" # no change 
                         # Stable states
                         elif state_byte == b'@': 
                             state = STATE_ALARM_DISARMED
-                            self._triggered_by = None # clear triggered_by
-                        elif state_byte in (b'Q', b'R', b'S'):
+                        elif state_byte in (b'Q', b'R', b'S') and state == STATE_ALARM_DISARMED:
                             state = STATE_ALARM_ARMING # Zone A; A&B; A&B&C
                         elif state_byte == b'A':
                             state = STATE_ALARM_ARMED_HOME
@@ -278,44 +298,45 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         elif state_byte in (b'\xa4', b'\xa0', b'\xb8') and self._state == STATE_ALARM_DISARMING:
                             state = STATE_ALARM_DISARMING
                         # Keypress 
-                        if state_byte in (b'\x80', b'\x81', b'\x82', b'\x83', b'\x84', b'\x85', b'\x86', b'\x87', b'\x88', b'\x89', b'\x8e', b'\x8f'):
+                        elif state_byte in (b'\x80', b'\x81', b'\x82', b'\x83', b'\x84', b'\x85', b'\x86', b'\x87', b'\x88', b'\x89', b'\x8e', b'\x8f'):
                             state = "ignore" # no change
 
                         if state == "ignore":
                             pass
                         elif state is not None:
-                            if state != self._state:
-                                _LOGGER.debug("Recognized state change to %s from packet %s", state, state_byte)
-                            if state == STATE_ALARM_TRIGGERED and self._triggered_by is None:
-                                pass # wait for _triggered_by to be set before returning triggered state
-                            else:
-                                return state
+                            return state
                         else:
-                            _LOGGER.warn("Unknown status packet is %s", packet[2:8])
+                            _LOGGER.debug("Unknown status packet is %s", packet[2:8])
 
-                    elif byte_two == 62: # '>' symbol is received on startup
-                        _LOGGER.info("Startup response packet is: %s", packet[1:8])
+                    # Packets x07?F*\x1* contains the id of the device which triggered the alarm
+                    elif (byte_two == 7 and self._triggered_by is None and 
+                            (
+                                (packet[2:4] == b'GF' and packet[5:7] == b'\x1f<') or # when away
+                                (packet[2:4] == b'EF' and packet[5:7] == b'\x19<')  # when home
+                            )): 
+                        _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
+                        sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
+                        triggered_sensor = "%s: %s" % (sensor_id, self._config[CONF_CODE_SENSOR_NAMES].get(sensor_id, '?'))
+                        _LOGGER.info("Alarm triggered by sensor %s", triggered_sensor)
+                        self._triggered_by = triggered_sensor
+                        return STATE_ALARM_TRIGGERED
 
-                    elif byte_two == 7 and packet[2:4] in (b'GF', b'EF') and self._triggered_by is None:
-                        # Packets x07?F*\x1* contains the id of the device which triggered the alarm
-                        if (
-                                (packet[2:4] == b'GF' and packet[5:7] == b'\x1f<')  or #when away
-                                (packet[2:4] == b'EF' and packet[5:7] == b'\x19<') # when home
-                            ): 
-                            _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
-                            sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
-                            triggered_sensor = "%s: %s" % (sensor_id, self._config[CONF_CODE_SENSOR_NAMES].get(sensor_id, '?'))
-                            if self._triggered_by != triggered_sensor:
-                                _LOGGER.info("Alarm triggered by sensor %s", triggered_sensor)
-                                self._triggered_by = triggered_sensor
-                                if self._state != STATE_ALARM_TRIGGERED:
-                                    return STATE_ALARM_TRIGGERED
-                                else:
-                                    self.schedule_update_ha_state() # push attribute update to HA
+                    # Packets x07G*\x1* contains the id of the device which have been sabotaged
+                    elif (byte_two == 7 and self._triggered_by is None and 
+                            (
+                                (packet[2:3] == b'G' and packet[4:6] == b'\x1f<')  or # when away
+                                (packet[2:3] == b'G' and packet[4:6] == b'\x19<') # when home
+                            )): 
+                        _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
+                        sensor_id = int.from_bytes(packet[3:4], byteorder='big', signed=False)
+                        triggered_sensor = "%s: %s (sabotage)" % (sensor_id, self._config[CONF_CODE_SENSOR_NAMES].get(sensor_id, '?'))
+                        _LOGGER.info("Alarm triggered by sabotaged sensor %s", triggered_sensor)
+                        self._triggered_by = triggered_sensor
+                        return STATE_ALARM_TRIGGERED
 
                     else:
-                        #if self._state == STATE_ALARM_TRIGGERED:
-                        #    _LOGGER.debug("Unknown packet is %s", packet[1:8])
+                        # FOR REVERSE ENGINEERING ONLY: will produce A LOT of logs
+                        #_LOGGER.debug("Unknown packet when triggered %s", packet[1:8])
                         pass
 
                 else:
