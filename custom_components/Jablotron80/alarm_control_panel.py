@@ -276,7 +276,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         # Stable states
                         elif state_byte == b'@': 
                             state = STATE_ALARM_DISARMED
-                        elif state_byte in (b'Q', b'R', b'S') and state == STATE_ALARM_DISARMED:
+                        elif state_byte in (b'Q', b'R', b'S') and self._state == STATE_ALARM_DISARMED:
                             state = STATE_ALARM_ARMING # Zone A; A&B; A&B&C
                         elif state_byte == b'A':
                             state = STATE_ALARM_ARMED_HOME
@@ -295,7 +295,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                             state = STATE_ALARM_ARMING # during arm & arm away (beeps?)
                         elif state_byte in (b'\x02', b'\xe8', b'=') and self._state == STATE_ALARM_TRIGGERED:
                             state = STATE_ALARM_TRIGGERED # during alarm & alarm night
-                        elif state_byte in (b'\xa4', b'\xa0', b'\xb8') and self._state == STATE_ALARM_DISARMING:
+                        elif state_byte in (b'\xa4', b'\xa0', b'\xb8'):
                             state = STATE_ALARM_DISARMING
                         # Keypress 
                         elif state_byte in (b'\x80', b'\x81', b'\x82', b'\x83', b'\x84', b'\x85', b'\x86', b'\x87', b'\x88', b'\x89', b'\x8e', b'\x8f'):
