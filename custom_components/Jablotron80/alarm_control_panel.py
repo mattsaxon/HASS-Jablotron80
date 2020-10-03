@@ -317,9 +317,8 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                         sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
                         triggered_sensor = "%s: %s" % (sensor_id, self._config[CONF_CODE_SENSOR_NAMES].get(sensor_id, '?'))
-                        _LOGGER.info("Alarm triggered by sensor %s", triggered_sensor)
+                        _LOGGER.info("Trigger of sensor %s detected", triggered_sensor)
                         self._triggered_by = triggered_sensor
-                        return STATE_ALARM_TRIGGERED
 
                     # Packets x07G*\x1* contains the id of the device which have been sabotaged
                     elif (byte_two == 7 and self._triggered_by is None and 
@@ -330,13 +329,12 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                         sensor_id = int.from_bytes(packet[3:4], byteorder='big', signed=False)
                         triggered_sensor = "%s: %s (sabotage)" % (sensor_id, self._config[CONF_CODE_SENSOR_NAMES].get(sensor_id, '?'))
-                        _LOGGER.info("Alarm triggered by sabotaged sensor %s", triggered_sensor)
+                        _LOGGER.info("Sabotage of sensor %s detected", triggered_sensor)
                         self._triggered_by = triggered_sensor
-                        return STATE_ALARM_TRIGGERED
 
                     else:
                         # FOR REVERSE ENGINEERING ONLY: will produce A LOT of logs
-                        #_LOGGER.debug("Unknown packet when triggered %s", packet[1:8])
+                        #_LOGGER.debug("Unknown packet %s", packet[1:8])
                         pass
 
                 else:
