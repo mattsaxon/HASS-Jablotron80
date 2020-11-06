@@ -271,7 +271,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         state_byte = packet[2:3]
                     
                         # heartbeats or null
-                        if state_byte in (b'\xed', b'\xff', b'\x00'):
+                        if state_byte in (b'\xed', b'\xff', b'\x00', b'z'):
                             state = "ignore" # no change 
                         # Stable states
                         elif state_byte == b'@': 
@@ -300,6 +300,11 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                         # Keypress 
                         elif state_byte in (b'\x80', b'\x81', b'\x82', b'\x83', b'\x84', b'\x85', b'\x86', b'\x87', b'\x88', b'\x89', b'\x8e', b'\x8f'):
                             state = "ignore" # no change
+
+                        # Ignore change from disarmed to triggered
+                        if state == STATE_ALARM_TRIGGERED and self._state == STATE_ALARM_DISARMED:
+                            _LOGGER.info("Ignoring triggered state when disarmed")
+                            state = "ignore" 
 
                         if state == "ignore":
                             pass
@@ -334,7 +339,7 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
 
                     else:
                         # FOR REVERSE ENGINEERING ONLY: will produce A LOT of logs
-                        #_LOGGER.debug("Unknown packet %s", packet[1:8])
+                        #_LOGGER.debug("Unknown packet when triggered %s", packet[1:8])
                         pass
 
                 else:
