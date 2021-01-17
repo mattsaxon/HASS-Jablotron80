@@ -316,8 +316,10 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                     # Packets x07?F*\x1* contains the id of the device which triggered the alarm
                     elif (byte_two == 7 and self._triggered_by is None and 
                             (
-                                (packet[2:4] == b'GF' and packet[5:7] == b'\x1f<') or # when away
-                                (packet[2:4] == b'EF' and packet[5:7] == b'\x19<')  # when home
+                                (packet[2:4] == b'GF' and packet[5:6] == b'\x1f') or # when away                                
+                                (packet[2:4] == b'G\x06' and packet[5:6] == b'\x1f') or # when away
+                                (packet[2:4] == b'EF' and packet[5:6] == b'\x19') or # when home
+                                (packet[2:4] == b'E\x06' and packet[5:6] == b'\x19') # when home
                             )): 
                         _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                         sensor_id = int.from_bytes(packet[4:5], byteorder='big', signed=False)
@@ -328,8 +330,8 @@ class JablotronAlarm(alarm.AlarmControlPanelEntity):
                     # Packets x07G*\x1* contains the id of the device which have been sabotaged
                     elif (byte_two == 7 and self._triggered_by is None and 
                             (
-                                (packet[2:3] == b'G' and packet[4:6] == b'\x1f<')  or # when away
-                                (packet[2:3] == b'G' and packet[4:6] == b'\x19<') # when home
+                                (packet[2:3] == b'G' and packet[4:5] == b'\x1f')  or # when away
+                                (packet[2:3] == b'G' and packet[4:5] == b'\x19') # when home
                             )): 
                         _LOGGER.debug("Sensor status packet is: %s", packet[1:8])
                         sensor_id = int.from_bytes(packet[3:4], byteorder='big', signed=False)
