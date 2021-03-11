@@ -3,5 +3,6 @@
         "name": "Jablotron 80 Component",
         "documentation": "https://github.com/mattsaxon/hass-jablotron80",
         "issue_tracker": "https://github.com/mattsaxon/hass-jablotron80/issues",
-        "codeowners": ["@mattsaxon"]
+        "codeowners": ["@mattsaxon"],
+        "version": "1.0.0"
 }
