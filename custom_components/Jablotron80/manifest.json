@@ -1,8 +1,9 @@
 {
         "domain": "Jablotron80",
         "name": "Jablotron 80 Component",
-        "version": "0.0.1.0",
         "documentation": "https://github.com/mattsaxon/hass-jablotron80",
         "issue_tracker": "https://github.com/mattsaxon/hass-jablotron80/issues",
-        "codeowners": ["@mattsaxon"]
+        "codeowners": ["@mattsaxon"],
+        "version": "0.1.0",
+        "iot_class": "local_push"
 }
