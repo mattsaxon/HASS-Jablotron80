@@ -11,11 +11,11 @@ For 100 series devices please see other repo here https://github.com/plaksnor/HA
 - Whilst I would have expected this to work with other USB/serial cables, I haven't had confirmation of others that the JA-82T working yet. I'd be happy to work through issues with anyone having trouble.
 
 ## Installation
-To use this platform, copy alarm_control_panel.py to "<home assistant config dir>/custom_components/jablotron/" and add the config below to configuration.yaml
+To use this platform, copy alarm_control_panel.py to "<home assistant config dir>/custom_components/Jablotron80/" and add the config below to configuration.yaml
 
 ```
 alarm_control_panel:
-  - platform: jablotron
+  - platform: Jablotron80
     serial_port: [serial port path]    
     code: [code to send to physical panel and code to enter into HA UI]
     code_panel_arm_required: [True if you need a code to be sent to physical panel on arming, Default False]
@@ -28,7 +28,7 @@ alarm_control_panel:
 Example:
 ```
 alarm_control_panel:
-  - platform: jablotron
+  - platform: Jablotron80
     serial_port: /dev/hidraw0     
     code: !secret alarm_code
     code_panel_arm_required: False
