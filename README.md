@@ -1,6 +1,6 @@
 # HASS-Jablotron80
 
-Unmaintained Home Assistant platform to control Jablotron 80 alarm control panel via serial connection.
+***Unmaintained*** Home Assistant platform to control Jablotron 80 alarm control panel via serial connection.
 
 For 80 series see https://github.com/tahvane1/jablotron80
 
